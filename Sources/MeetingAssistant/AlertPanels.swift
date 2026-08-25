@@ -17,22 +17,9 @@ struct AlertContentView: View {
                 .accessibilityLabel(presentation?.text ?? "")
 
             ForEach(model.visibleMeetings) { meeting in
-                Button { model.open(meeting) } label: {
-                    HStack(spacing: 10) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(meeting.title).font(.headline).lineLimit(1)
-                            Text(rowStatus(meeting)).font(.caption).monospacedDigit().opacity(0.85)
-                        }
-                        Spacer()
-                        Text(meeting.actionKind == .join ? "Join" : "Open Event")
-                            .fontWeight(.semibold)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .contentShape(Rectangle())
+                MeetingActionButton(meeting: meeting, status: rowStatus(meeting)) {
+                    model.open(meeting)
                 }
-                .buttonStyle(.plain)
-                .background(.white.opacity(0.18), in: RoundedRectangle(cornerRadius: 10))
             }
         }
         .padding(18)
@@ -46,6 +33,66 @@ struct AlertContentView: View {
     private func rowStatus(_ meeting: QualifyingMeeting) -> String {
         let presentation = CountdownPresentation(meetingStart: meeting.start, now: model.now)
         return presentation.phase == .late ? presentation.text : "Starts in \(presentation.text)"
+    }
+}
+
+private struct MeetingActionButton: View {
+    let meeting: QualifyingMeeting
+    let status: String
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(meeting.title).font(.headline).lineLimit(1)
+                    Text(status).font(.caption).monospacedDigit().opacity(0.85)
+                }
+                Spacer()
+                Text(meeting.actionKind == .join ? "Join" : "Open Event")
+                    .fontWeight(.semibold)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(MeetingActionButtonStyle(isHovering: isHovering))
+        .onHover { isHovering = $0 }
+        .background(PointingHandCursorView())
+    }
+}
+
+private struct MeetingActionButtonStyle: ButtonStyle {
+    let isHovering: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(.white.opacity(configuration.isPressed ? 0.38 : isHovering ? 0.28 : 0.18))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(.white.opacity(isHovering ? 0.7 : 0.2), lineWidth: isHovering ? 1.5 : 1)
+            )
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.easeOut(duration: 0.12), value: isHovering)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+
+private struct PointingHandCursorView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { CursorRectView() }
+    func updateNSView(_ nsView: NSView, context: Context) { nsView.window?.invalidateCursorRects(for: nsView) }
+
+    private final class CursorRectView: NSView {
+        override func resetCursorRects() {
+            super.resetCursorRects()
+            addCursorRect(bounds, cursor: .pointingHand)
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
     }
 }
 
@@ -73,6 +120,7 @@ private struct PhaseBackground: View {
 @MainActor
 final class AlertPanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
+    private let positionPolicy = AlertPanelPositionPolicy()
     private var panels: [String: NSPanel] = [:]
     private var cancellable: AnyCancellable?
     private var screenObserver: NSObjectProtocol?
@@ -143,11 +191,11 @@ final class AlertPanelController: NSObject, NSWindowDelegate {
 
     private func restorePosition(of panel: NSPanel, on screen: NSScreen) {
         var frame = panel.frame
+        let savedPoint: CGPoint?
         if let saved = UserDefaults.standard.array(forKey: positionKey(screen)) as? [Double], saved.count == 2 {
-            frame.origin = NSPoint(x: saved[0], y: saved[1])
-        } else {
-            frame.origin = NSPoint(x: screen.visibleFrame.maxX - frame.width - 20, y: screen.visibleFrame.maxY - frame.height - 20)
-        }
+            savedPoint = CGPoint(x: saved[0], y: saved[1])
+        } else { savedPoint = nil }
+        frame.origin = positionPolicy.restoredOrigin(saved: savedPoint, panelSize: frame.size, visibleFrame: screen.visibleFrame)
         panel.setFrame(clamped(frame, to: screen.visibleFrame), display: false)
     }
 

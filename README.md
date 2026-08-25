@@ -7,6 +7,7 @@ Meeting Assistant is a native macOS 14+ menu-bar application that watches the si
 - Qualifies accepted invitations and hosted meetings with at least one other non-declined person.
 - Skips all-day, cancelled, tentative, focus-time, working-location, out-of-office, solo, and room-only events.
 - Appears five minutes before a meeting, pulses orange during the final minute, and flashes red after the start.
+- Defaults to a 48-point corner inset while remaining draggable; action rows highlight on hover, show pressed feedback, and use a pointing-hand cursor.
 - Resolves Google Meet, Zoom, and Microsoft Teams links; otherwise opens the Google Calendar event.
 - Acknowledges every currently displayed meeting when any Join/Open Event button succeeds.
 - Has no alert dismissal control. Quit requires a five-second confirmation delay.
