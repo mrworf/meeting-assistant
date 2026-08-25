@@ -10,6 +10,8 @@
     <string>MeetingAssistant</string>
     <key>CFBundleIdentifier</key>
     <string>com.henricandersson.MeetingAssistant</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -30,4 +32,3 @@
     <string>NSApplication</string>
 </dict>
 </plist>
-

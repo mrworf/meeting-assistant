@@ -2,6 +2,8 @@
 
 Meeting Assistant is a native macOS 14+ menu-bar application that watches the signed-in user's primary Google Calendar and presents an always-on-top meeting countdown on every display.
 
+The application icon combines a countdown dial, an orange-to-red urgency arc, and three participant nodes. The 1024px source is in `Assets/AppIcon-1024.png`; the packaged macOS icon is `Packaging/AppIcon.icns`.
+
 ## Behavior
 
 - Qualifies accepted invitations and hosted meetings with at least one other non-declined person.

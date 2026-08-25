@@ -19,7 +19,7 @@ fi
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
 cp "$binary_path" "$app_path/Contents/MacOS/MeetingAssistant"
 cp "$project_dir/Packaging/Info.plist" "$app_path/Contents/Info.plist"
+cp "$project_dir/Packaging/AppIcon.icns" "$app_path/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$app_path"
 
 print "Built $app_path"
-
