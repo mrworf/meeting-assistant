@@ -5,5 +5,5 @@ import Testing
     #expect(AppIdentity.name == "Meeting Assistant")
     #expect(AppIdentity.alertLeadTime == 300)
     #expect(AppIdentity.refreshInterval == 300)
+    #expect(AppIdentity.alertLeadMinuteOptions == [5, 10, 15])
 }
-

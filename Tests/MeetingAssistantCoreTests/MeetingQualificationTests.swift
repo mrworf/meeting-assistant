@@ -55,6 +55,29 @@ private func event(
     #expect(MeetingQualifier().qualify(value) == nil)
 }
 
+@Test func participantNamesExcludeSelfDeclinedResourcesAndDuplicates() throws {
+    var value = event(organizer: false)
+    value.organizer = .init(email: "organizer@example.com", displayName: "Organizer")
+    value.attendees = [
+        .init(email: "me@example.com", displayName: "Me", selfUser: true, responseStatus: "accepted"),
+        .init(email: "me@example.com", displayName: "Duplicate Me", responseStatus: "accepted"),
+        .init(email: "alex@example.com", displayName: "Alex", responseStatus: "accepted"),
+        .init(email: "alex@example.com", displayName: "Alex Duplicate", responseStatus: "accepted"),
+        .init(email: "declined@example.com", displayName: "Declined", responseStatus: "declined"),
+        .init(email: "room@example.com", displayName: "Room", resource: true, responseStatus: "accepted"),
+    ]
+    let meeting = try #require(MeetingQualifier().qualify(value))
+    #expect(meeting.participants == ["Alex", "Organizer"])
+    #expect(!meeting.participants.contains("Me"))
+    #expect(!meeting.participants.contains("Duplicate Me"))
+}
+
+@Test func participantListShowsFourNamesAndAdditionalCountWhenOverFive() {
+    let participants = ["One", "Two", "Three", "Four", "Five", "Six", "Seven"]
+    #expect(ParticipantListPolicy().displayEntries(participants) == ["One", "Two", "Three", "Four", "and 3 additional"])
+    #expect(ParticipantListPolicy().displayEntries(Array(participants.prefix(5))) == ["One", "Two", "Three", "Four", "Five"])
+}
+
 @Test func resolvesConferenceThenTextThenCalendarFallback() {
     var value = event(hangoutLink: nil, location: "Zoom: https://acme.zoom.us/j/123")
     value.conferenceData = .init(entryPoints: [.init(entryPointType: "video", uri: "https://teams.microsoft.com/l/meetup-join/first")])

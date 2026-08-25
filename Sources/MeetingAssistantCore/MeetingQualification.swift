@@ -74,7 +74,8 @@ public struct MeetingQualifier: Sendable {
             start: start,
             end: end,
             actionURL: actionURL,
-            actionKind: actionKind
+            actionKind: actionKind,
+            participants: participantNames(event)
         )
     }
 
@@ -88,9 +89,44 @@ public struct MeetingQualifier: Sendable {
             $0.selfUser != true && $0.resource != true && $0.responseStatus != "declined"
         } == true
     }
+
+    private func participantNames(_ event: GoogleCalendarEvent) -> [String] {
+        let selfEmails = Set((event.attendees ?? [])
+            .filter { $0.selfUser == true }
+            .compactMap { $0.email?.lowercased() })
+        var people = (event.attendees ?? []).filter {
+            $0.selfUser != true && $0.resource != true && $0.responseStatus != "declined"
+        }
+        if let organizer = event.organizer, organizer.selfUser != true, organizer.resource != true {
+            people.append(organizer)
+        }
+
+        var seen: Set<String> = []
+        var names: [String] = []
+        for person in people {
+            let email = person.email?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let email, selfEmails.contains(email.lowercased()) { continue }
+            let displayName = person.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let name = displayName?.nonEmpty ?? email?.nonEmpty else { continue }
+            let identity = (email?.nonEmpty ?? name).lowercased()
+            guard seen.insert(identity).inserted else { continue }
+            names.append(name)
+        }
+        return names
+    }
+}
+
+public struct ParticipantListPolicy: Sendable {
+    public init() {}
+
+    public func displayEntries(_ participants: [String], limit: Int = 5) -> [String] {
+        guard limit > 0 else { return [] }
+        guard participants.count > limit else { return participants }
+        let visibleCount = max(limit - 1, 0)
+        return Array(participants.prefix(visibleCount)) + ["and \(participants.count - visibleCount) additional"]
+    }
 }
 
 private extension String {
     var nonEmpty: String? { isEmpty ? nil : self }
 }
-

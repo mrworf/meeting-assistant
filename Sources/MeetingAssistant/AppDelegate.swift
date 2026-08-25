@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(configureItem)
         menu.addItem(quitItem)
         menu.addItem(.separator())
+        menu.autoenablesItems = false
         menu.delegate = self
         item.menu = menu
         statusItem = item
@@ -49,7 +50,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             for meeting in section.meetings {
                 let start = meeting.start.formatted(date: .omitted, time: .shortened)
                 let item = NSMenuItem(title: "\(start) — \(meeting.title)", action: nil, keyEquivalent: "")
-                item.isEnabled = false
+                let attendeeMenu = NSMenu(title: "Participants")
+                attendeeMenu.autoenablesItems = false
+                let attendees = ParticipantListPolicy().displayEntries(meeting.participants)
+                for attendee in attendees.isEmpty ? ["Participant details unavailable"] : attendees {
+                    let attendeeItem = NSMenuItem(title: attendee, action: nil, keyEquivalent: "")
+                    attendeeItem.isEnabled = false
+                    attendeeMenu.addItem(attendeeItem)
+                }
+                item.submenu = attendeeMenu
+                item.isEnabled = true
                 menu.addItem(item)
             }
         }

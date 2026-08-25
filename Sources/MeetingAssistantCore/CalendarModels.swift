@@ -13,17 +13,19 @@ public struct GoogleCalendarEvent: Codable, Equatable, Sendable {
 
     public struct Person: Codable, Equatable, Sendable {
         public var email: String?
+        public var displayName: String?
         public var selfUser: Bool?
         public var resource: Bool?
         public var responseStatus: String?
 
         enum CodingKeys: String, CodingKey {
-            case email, resource, responseStatus
+            case email, displayName, resource, responseStatus
             case selfUser = "self"
         }
 
-        public init(email: String? = nil, selfUser: Bool? = nil, resource: Bool? = nil, responseStatus: String? = nil) {
+        public init(email: String? = nil, displayName: String? = nil, selfUser: Bool? = nil, resource: Bool? = nil, responseStatus: String? = nil) {
             self.email = email
+            self.displayName = displayName
             self.selfUser = selfUser
             self.resource = resource
             self.responseStatus = responseStatus
@@ -109,8 +111,9 @@ public struct QualifyingMeeting: Codable, Equatable, Identifiable, Sendable {
     public let end: Date
     public let actionURL: URL
     public let actionKind: ActionKind
+    public let participants: [String]
 
-    public init(eventID: String, occurrenceKey: String, title: String, start: Date, end: Date, actionURL: URL, actionKind: ActionKind) {
+    public init(eventID: String, occurrenceKey: String, title: String, start: Date, end: Date, actionURL: URL, actionKind: ActionKind, participants: [String] = []) {
         self.eventID = eventID
         self.id = occurrenceKey
         self.title = title
@@ -118,6 +121,7 @@ public struct QualifyingMeeting: Codable, Equatable, Identifiable, Sendable {
         self.end = end
         self.actionURL = actionURL
         self.actionKind = actionKind
+        self.participants = participants
     }
 }
 

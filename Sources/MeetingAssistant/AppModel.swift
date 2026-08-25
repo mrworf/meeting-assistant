@@ -11,6 +11,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var isConnected = false
     @Published private(set) var isSyncing = false
     @Published private(set) var lastSuccessfulSync: Date?
+    @Published private(set) var alertLeadMinutes: Int
     @Published var statusMessage = "Not connected"
     @Published var launchAtLoginError: String?
     @Published var clientID: String {
@@ -27,7 +28,6 @@ final class AppModel: ObservableObject {
     private let oauth = GoogleOAuthService()
     private let syncEngine = CalendarSyncEngine()
     private let acknowledgements = AcknowledgementController(store: UserDefaultsAcknowledgementStore())
-    private let policy = AlertPolicy()
     private let upcomingPolicy = UpcomingMeetingPolicy()
     private let oauthCoordinator = LoopbackOAuthCoordinator()
     private let pathMonitor = NWPathMonitor()
@@ -43,10 +43,19 @@ final class AppModel: ObservableObject {
         clientSecretStore = secretStore
         clientID = UserDefaults.standard.string(forKey: "googleOAuthClientID") ?? ""
         clientSecret = (try? secretStore.load()) ?? ""
+        let savedLeadMinutes = UserDefaults.standard.integer(forKey: "alertLeadMinutes")
+        alertLeadMinutes = AppIdentity.alertLeadMinuteOptions.contains(savedLeadMinutes) ? savedLeadMinutes : 5
     }
 
     var hasOAuthClientConfiguration: Bool {
         !clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !clientSecret.isEmpty
+    }
+
+    func setAlertLeadMinutes(_ minutes: Int) {
+        guard AppIdentity.alertLeadMinuteOptions.contains(minutes) else { return }
+        alertLeadMinutes = minutes
+        UserDefaults.standard.set(minutes, forKey: "alertLeadMinutes")
+        recalculateVisibleMeetings()
     }
 
     func importOAuthClientJSON(_ data: Data) {
@@ -167,7 +176,8 @@ final class AppModel: ObservableObject {
     private func recalculateVisibleMeetings() {
         let currentIDs = Set(allMeetings.map(\.id))
         latchedMeetings = latchedMeetings.filter { currentIDs.contains($0.key) }
-        policy.meetingsToDisplay(allMeetings, acknowledged: acknowledgements.acknowledged, now: now).forEach { latchedMeetings[$0.id] = $0 }
+        let alertPolicy = AlertPolicy(leadTime: TimeInterval(alertLeadMinutes * 60))
+        alertPolicy.meetingsToDisplay(allMeetings, acknowledged: acknowledgements.acknowledged, now: now).forEach { latchedMeetings[$0.id] = $0 }
         visibleMeetings = latchedMeetings.values.sorted { $0.start < $1.start }
         let nextMeetings = upcomingPolicy.meetings(allMeetings, after: now)
         if upcomingMeetings != nextMeetings { upcomingMeetings = nextMeetings }

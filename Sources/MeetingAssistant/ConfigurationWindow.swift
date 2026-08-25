@@ -7,7 +7,10 @@ import UniformTypeIdentifiers
 struct ConfigurationView: View {
     @ObservedObject var model: AppModel
     @State private var loginEnabled = false
-    @State private var loginStatus = ""
+    @State private var loginMessage: String?
+    @State private var showReconnectConfirmation = false
+    @State private var showDisconnectConfirmation = false
+    @State private var showAbout = false
 
     var body: some View {
         Form {
@@ -23,12 +26,13 @@ struct ConfigurationView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button(model.isConnected ? "Reconnect Google Account" : "Connect Google Account") {
-                        Task { await model.connect() }
+                        if model.isConnected { showReconnectConfirmation = true }
+                        else { Task { await model.connect() } }
                     }
                     .disabled(!model.hasOAuthClientConfiguration || model.isSyncing)
                     Button("Refresh Now") { Task { await model.refresh() } }
                         .disabled(!model.isConnected || model.isSyncing)
-                    if model.isConnected { Button("Disconnect", role: .destructive) { model.disconnect() } }
+                    if model.isConnected { Button("Disconnect", role: .destructive) { showDisconnectConfirmation = true } }
                     if model.isSyncing { ProgressView().controlSize(.small) }
                 }
                 LabeledContent("Status", value: model.statusMessage)
@@ -40,19 +44,48 @@ struct ConfigurationView: View {
                     get: { loginEnabled },
                     set: { setLaunchAtLogin($0) }
                 ))
-                if !loginStatus.isEmpty { Text(loginStatus).font(.caption).foregroundStyle(.secondary) }
+                if let loginMessage { Text(loginMessage).font(.caption).foregroundStyle(.secondary) }
             }
 
             Section("Reminder behavior") {
-                LabeledContent("Countdown appears", value: "5 minutes before")
+                Picker("Countdown appears", selection: Binding(
+                    get: { model.alertLeadMinutes },
+                    set: { model.setAlertLeadMinutes($0) }
+                )) {
+                    ForEach(AppIdentity.alertLeadMinuteOptions, id: \.self) { minutes in
+                        Text("\(minutes) min").tag(minutes)
+                    }
+                }
+                .pickerStyle(.segmented)
                 Text("The reminder cannot be dismissed. Joining any displayed meeting acknowledges the current group.")
                     .font(.callout).foregroundStyle(.secondary)
+            }
+
+            Section {
+                HStack {
+                    Spacer()
+                    Button("About Meeting Assistant") { showAbout = true }
+                    Spacer()
+                }
             }
         }
         .formStyle(.grouped)
         .padding()
         .frame(minWidth: 610, minHeight: 510)
         .onAppear { refreshLoginStatus() }
+        .alert("Are you sure?", isPresented: $showReconnectConfirmation) {
+            Button("Reconnect", role: .destructive) { Task { await model.connect() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Reconnect will replace the current Google account authorization.")
+        }
+        .alert("Are you sure?", isPresented: $showDisconnectConfirmation) {
+            Button("Disconnect", role: .destructive) { model.disconnect() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Disconnect will remove the stored Google authorization and clear cached meetings.")
+        }
+        .sheet(isPresented: $showAbout) { AboutMeetingAssistantView() }
     }
 
     private func importOAuthJSON() {
@@ -67,6 +100,7 @@ struct ConfigurationView: View {
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
+        model.launchAtLoginError = nil
         do {
             if enabled { try SMAppService.mainApp.register() }
             else { try SMAppService.mainApp.unregister() }
@@ -78,20 +112,40 @@ struct ConfigurationView: View {
         switch SMAppService.mainApp.status {
         case .enabled:
             loginEnabled = true
-            loginStatus = "Enabled"
+            loginMessage = nil
         case .requiresApproval:
             loginEnabled = false
-            loginStatus = "Approval is required in System Settings → General → Login Items."
+            loginMessage = "Approval is required in System Settings → General → Login Items."
         case .notRegistered:
             loginEnabled = false
-            loginStatus = model.launchAtLoginError ?? "Disabled"
+            loginMessage = model.launchAtLoginError
         case .notFound:
             loginEnabled = false
-            loginStatus = "Install the packaged app in Applications to enable launch at login."
+            loginMessage = "Install the packaged app in Applications to enable launch at login."
         @unknown default:
             loginEnabled = false
-            loginStatus = "Unknown status"
+            loginMessage = "Unable to determine launch-at-login status."
         }
+    }
+}
+
+private struct AboutMeetingAssistantView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Why did I create this app?")
+                .font(.title2.bold())
+            Text("I kept arriving late to meetings. Google gave me a five-minute warning and Slack gave me a one-minute warning, but neither was persistent. I keep popup notifications turned off, so those reminders were easy to miss.")
+            Text("Meeting Assistant provides a reminder that stays visible until I act. It only cares about meetings with more than one participant—I do not need a reminder to join a meeting when I am the only person there. Meetings I declined or did not accept are ignored as well.")
+            Spacer()
+            HStack {
+                Spacer()
+                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(24)
+        .frame(width: 500, height: 310)
     }
 }
 
