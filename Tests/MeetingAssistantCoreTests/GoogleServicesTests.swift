@@ -59,6 +59,26 @@ struct GoogleServicesTests {
     #expect(request.verifier.count >= 43)
 }
 
+@Test func importsDownloadedGoogleDesktopClientJSON() throws {
+    let data = Data(#"{"installed":{"client_id":"desktop.apps.googleusercontent.com","project_id":"project","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","client_secret":"secret-value","redirect_uris":["http://localhost"]}}"#.utf8)
+    let configuration = try GoogleOAuthClientConfiguration.decodeGoogleClientJSON(data)
+    #expect(configuration.clientID == "desktop.apps.googleusercontent.com")
+    #expect(configuration.clientSecret == "secret-value")
+}
+
+@Test func rejectsOAuthJSONWithoutClientCredentials() {
+    #expect(throws: GoogleAuthError.invalidClientFile) {
+        try GoogleOAuthClientConfiguration.decodeGoogleClientJSON(Data(#"{"installed":{"client_id":"id"}}"#.utf8))
+    }
+}
+
+@Test func tokenFormIncludesAndEncodesClientSecret() throws {
+    let data = GoogleOAuthService.tokenFormBody(["client_id": "client"], clientSecret: "secret + value")
+    let body = try #require(String(data: data!, encoding: .utf8))
+    #expect(body.contains("client_id=client"))
+    #expect(body.contains("client_secret=secret%20%2B%20value"))
+}
+
 @Test func refreshesExpiredCredentialAndKeepsRefreshToken() async throws {
     let store = MemoryCredentialStore()
     store.credential = .init(accessToken: "old", refreshToken: "refresh", expiresAt: .distantPast)

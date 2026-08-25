@@ -17,10 +17,11 @@ Meeting Assistant is a native macOS 14+ menu-bar application that watches the si
 1. Create or select a project in [Google Cloud Console](https://console.cloud.google.com/).
 2. Enable the **Google Calendar API**.
 3. Configure an OAuth consent screen. For personal use, keep it in Testing and add your Google account as a test user.
-4. Create an OAuth client with application type **Desktop app**.
-5. Build and launch Meeting Assistant, choose **Configure**, paste the client ID, and click **Connect Google Account**.
+4. Create an OAuth client with application type **Desktop app**, then download its JSON credentials file.
+5. Build and launch Meeting Assistant, choose **Configure**, click **Import Google OAuth JSON**, and select the downloaded file.
+6. Click **Connect Google Account** and complete authorization in the system browser.
 
-The app requests only `https://www.googleapis.com/auth/calendar.readonly`. Refresh credentials are stored in macOS Keychain. Calendar state and non-sensitive settings are stored in the application's user defaults.
+The app requests only `https://www.googleapis.com/auth/calendar.readonly`. The imported client secret and refresh credentials are stored in macOS Keychain; the credentials JSON is never copied into the repository or app bundle. Calendar state and non-sensitive settings are stored in the application's user defaults.
 
 ## Build and test
 
@@ -42,4 +43,3 @@ The packaging script creates an ad-hoc-signed `MeetingAssistant.app` in the repo
 - `MeetingAssistantCore` contains event decoding, qualification, URL resolution, alert policy, OAuth/token handling, Calendar synchronization, and persistence.
 - `MeetingAssistant` contains the AppKit lifecycle, SwiftUI views, browser OAuth callback listener, menu, configuration window, and per-display alert panels.
 - Tests use an injected clock and mocked `URLSession` transport; no live Google credentials are needed.
-

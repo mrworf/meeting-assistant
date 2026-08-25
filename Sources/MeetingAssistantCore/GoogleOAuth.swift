@@ -4,6 +4,8 @@ import Security
 
 public enum GoogleAuthError: LocalizedError, Equatable {
     case missingClientID
+    case missingClientSecret
+    case invalidClientFile
     case authorizationRequired
     case invalidCallback
     case stateMismatch
@@ -12,11 +14,44 @@ public enum GoogleAuthError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .missingClientID: "Enter a Google Desktop OAuth client ID in Configure."
+        case .missingClientSecret: "Import Google’s OAuth JSON or enter its client secret in Configure."
+        case .invalidClientFile: "The selected file is not a valid Google Desktop OAuth client JSON file."
         case .authorizationRequired: "Connect a Google account to continue."
         case .invalidCallback: "Google returned an invalid authorization response."
         case .stateMismatch: "The OAuth response could not be verified. Please try again."
         case .tokenExchangeFailed(let message): "Google authorization failed: \(message)"
         }
+    }
+}
+
+public struct GoogleOAuthClientConfiguration: Codable, Equatable, Sendable {
+    public let clientID: String
+    public let clientSecret: String
+
+    public init(clientID: String, clientSecret: String) {
+        self.clientID = clientID
+        self.clientSecret = clientSecret
+    }
+
+    public static func decodeGoogleClientJSON(_ data: Data) throws -> Self {
+        struct File: Decodable {
+            struct Client: Decodable {
+                let clientID: String
+                let clientSecret: String
+                enum CodingKeys: String, CodingKey {
+                    case clientID = "client_id"
+                    case clientSecret = "client_secret"
+                }
+            }
+            let installed: Client?
+            let web: Client?
+        }
+        guard let file = try? JSONDecoder().decode(File.self, from: data),
+              let client = file.installed ?? file.web,
+              !client.clientID.isEmpty,
+              !client.clientSecret.isEmpty
+        else { throw GoogleAuthError.invalidClientFile }
+        return Self(clientID: client.clientID, clientSecret: client.clientSecret)
     }
 }
 
@@ -111,6 +146,57 @@ public final class KeychainCredentialStore: CredentialStoring, @unchecked Sendab
     }
 }
 
+public final class KeychainStringStore: @unchecked Sendable {
+    private let service: String
+    private let account: String
+
+    public init(service: String = AppIdentity.bundleIdentifier, account: String) {
+        self.service = service
+        self.account = account
+    }
+
+    public func load() throws -> String? {
+        var query = baseQuery
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess, let data = result as? Data, let value = String(data: data, encoding: .utf8) else {
+            throw StringStoreError(status)
+        }
+        return value
+    }
+
+    public func save(_ value: String) throws {
+        if value.isEmpty { try clear(); return }
+        let data = Data(value.utf8)
+        let attributes = [kSecValueData as String: data]
+        let updateStatus = SecItemUpdate(baseQuery as CFDictionary, attributes as CFDictionary)
+        if updateStatus == errSecItemNotFound {
+            var query = baseQuery
+            query[kSecValueData as String] = data
+            let status = SecItemAdd(query as CFDictionary, nil)
+            guard status == errSecSuccess else { throw StringStoreError(status) }
+        } else if updateStatus != errSecSuccess { throw StringStoreError(updateStatus) }
+    }
+
+    public func clear() throws {
+        let status = SecItemDelete(baseQuery as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else { throw StringStoreError(status) }
+    }
+
+    private var baseQuery: [String: Any] {
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
+    }
+
+    private struct StringStoreError: LocalizedError {
+        let status: OSStatus
+        init(_ status: OSStatus) { self.status = status }
+        var errorDescription: String? { SecCopyErrorMessageString(status, nil) as String? ?? "Keychain error \(status)" }
+    }
+}
+
 public struct GoogleOAuthService: Sendable {
     public static let calendarReadOnlyScope = "https://www.googleapis.com/auth/calendar.readonly"
 
@@ -143,20 +229,20 @@ public struct GoogleOAuthService: Sendable {
         return OAuthAuthorizationRequest(url: components.url!, verifier: verifier, state: state, redirectURI: redirectURI)
     }
 
-    public func exchangeAuthorizationCode(_ code: String, request: OAuthAuthorizationRequest, clientID: String) async throws -> StoredGoogleCredential {
+    public func exchangeAuthorizationCode(_ code: String, request: OAuthAuthorizationRequest, clientID: String, clientSecret: String? = nil) async throws -> StoredGoogleCredential {
         let response = try await tokenRequest([
             "client_id": clientID,
             "code": code,
             "code_verifier": request.verifier,
             "grant_type": "authorization_code",
             "redirect_uri": request.redirectURI,
-        ])
+        ], clientSecret: clientSecret)
         let credential = StoredGoogleCredential(accessToken: response.accessToken, refreshToken: response.refreshToken, expiresAt: Date().addingTimeInterval(response.expiresIn))
         try credentialStore.save(credential)
         return credential
     }
 
-    public func validAccessToken(clientID: String, now: Date = Date()) async throws -> String {
+    public func validAccessToken(clientID: String, clientSecret: String? = nil, now: Date = Date()) async throws -> String {
         guard var credential = try credentialStore.load() else { throw GoogleAuthError.authorizationRequired }
         if credential.expiresAt.timeIntervalSince(now) > 60 { return credential.accessToken }
         guard let refreshToken = credential.refreshToken else { throw GoogleAuthError.authorizationRequired }
@@ -164,7 +250,7 @@ public struct GoogleOAuthService: Sendable {
             "client_id": clientID,
             "refresh_token": refreshToken,
             "grant_type": "refresh_token",
-        ])
+        ], clientSecret: clientSecret)
         credential.accessToken = response.accessToken
         credential.refreshToken = response.refreshToken ?? refreshToken
         credential.expiresAt = now.addingTimeInterval(response.expiresIn)
@@ -176,21 +262,27 @@ public struct GoogleOAuthService: Sendable {
         try credentialStore.clear()
     }
 
-    private func tokenRequest(_ fields: [String: String]) async throws -> GoogleTokenResponse {
+    private func tokenRequest(_ fields: [String: String], clientSecret: String?) async throws -> GoogleTokenResponse {
         var request = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.httpBody = fields
-            .sorted { $0.key < $1.key }
-            .map { "\($0.key.formEncoded)=\($0.value.formEncoded)" }
-            .joined(separator: "&")
-            .data(using: .utf8)
+        request.httpBody = Self.tokenFormBody(fields, clientSecret: clientSecret)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let message = String(data: data, encoding: .utf8) ?? "Unknown token endpoint error"
             throw GoogleAuthError.tokenExchangeFailed(message)
         }
         return try JSONDecoder().decode(GoogleTokenResponse.self, from: data)
+    }
+
+    static func tokenFormBody(_ fields: [String: String], clientSecret: String?) -> Data? {
+        var fields = fields
+        if let clientSecret, !clientSecret.isEmpty { fields["client_secret"] = clientSecret }
+        return fields
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key.formEncoded)=\($0.value.formEncoded)" }
+            .joined(separator: "&")
+            .data(using: .utf8)
     }
 
     private static func randomURLSafeString(byteCount: Int) -> String {
@@ -211,4 +303,3 @@ private extension String {
         addingPercentEncoding(withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? self
     }
 }
-

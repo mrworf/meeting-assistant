@@ -15,7 +15,14 @@ final class AppModel: ObservableObject {
     @Published var clientID: String {
         didSet { UserDefaults.standard.set(clientID, forKey: "googleOAuthClientID") }
     }
+    @Published var clientSecret: String {
+        didSet {
+            do { try clientSecretStore.save(clientSecret) }
+            catch { statusMessage = error.localizedDescription }
+        }
+    }
 
+    private let clientSecretStore: KeychainStringStore
     private let oauth = GoogleOAuthService()
     private let syncEngine = CalendarSyncEngine()
     private let acknowledgements = AcknowledgementController(store: UserDefaultsAcknowledgementStore())
@@ -30,7 +37,23 @@ final class AppModel: ObservableObject {
     private var networkWasAvailable = false
 
     init() {
+        let secretStore = KeychainStringStore(account: "google-oauth-client-secret")
+        clientSecretStore = secretStore
         clientID = UserDefaults.standard.string(forKey: "googleOAuthClientID") ?? ""
+        clientSecret = (try? secretStore.load()) ?? ""
+    }
+
+    var hasOAuthClientConfiguration: Bool {
+        !clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !clientSecret.isEmpty
+    }
+
+    func importOAuthClientJSON(_ data: Data) {
+        do {
+            let configuration = try GoogleOAuthClientConfiguration.decodeGoogleClientJSON(data)
+            clientID = configuration.clientID
+            clientSecret = configuration.clientSecret
+            statusMessage = "OAuth credentials imported. Connect your Google account."
+        } catch { statusMessage = error.localizedDescription }
     }
 
     func start() {
@@ -76,11 +99,16 @@ final class AppModel: ObservableObject {
             statusMessage = GoogleAuthError.missingClientID.localizedDescription
             return
         }
+        guard !clientSecret.isEmpty else {
+            isConnected = false
+            statusMessage = GoogleAuthError.missingClientSecret.localizedDescription
+            return
+        }
         guard !isSyncing else { return }
         isSyncing = true
         defer { isSyncing = false }
         do {
-            let token = try await oauth.validAccessToken(clientID: clientID)
+            let token = try await oauth.validAccessToken(clientID: clientID, clientSecret: clientSecret)
             allMeetings = try await syncEngine.refresh(accessToken: token)
             lastSuccessfulSync = await syncEngine.lastSuccessfulSync()
             isConnected = true
@@ -97,10 +125,14 @@ final class AppModel: ObservableObject {
             statusMessage = GoogleAuthError.missingClientID.localizedDescription
             return
         }
+        guard !clientSecret.isEmpty else {
+            statusMessage = GoogleAuthError.missingClientSecret.localizedDescription
+            return
+        }
         do {
             statusMessage = "Waiting for Google authorization…"
             let result = try await oauthCoordinator.authorize(clientID: clientID, oauth: oauth)
-            _ = try await oauth.exchangeAuthorizationCode(result.code, request: result.request, clientID: clientID)
+            _ = try await oauth.exchangeAuthorizationCode(result.code, request: result.request, clientID: clientID, clientSecret: clientSecret)
             isConnected = true
             await refresh()
         } catch { statusMessage = error.localizedDescription }
@@ -136,4 +168,3 @@ final class AppModel: ObservableObject {
         visibleMeetings = latchedMeetings.values.sorted { $0.start < $1.start }
     }
 }
-

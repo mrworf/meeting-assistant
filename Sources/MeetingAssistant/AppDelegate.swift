@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var quitApproved = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installEditMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "calendar.badge.clock", accessibilityDescription: AppIdentity.name)
         let menu = NSMenu()
@@ -36,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if configurationController == nil { configurationController = ConfigurationWindowController(model: model) }
         configurationController?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
+        configurationController?.window?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func requestQuit() {
@@ -61,6 +63,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         defaults.set(true, forKey: "didConfigureLaunchAtLogin")
         do { try SMAppService.mainApp.register() }
         catch { model.launchAtLoginError = error.localizedDescription }
+    }
+
+    private func installEditMenu() {
+        let mainMenu = NSMenu()
+        let editRoot = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        mainMenu.addItem(editRoot)
+        mainMenu.setSubmenu(editMenu, for: editRoot)
+        NSApp.mainMenu = mainMenu
     }
 }
 

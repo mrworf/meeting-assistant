@@ -2,6 +2,7 @@ import AppKit
 import MeetingAssistantCore
 import ServiceManagement
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ConfigurationView: View {
     @ObservedObject var model: AppModel
@@ -11,15 +12,20 @@ struct ConfigurationView: View {
     var body: some View {
         Form {
             Section("Google Calendar") {
-                Text("Create a Google Cloud Desktop OAuth client, enable the Google Calendar API, and paste its client ID below.")
+                Text("Import the OAuth JSON downloaded for a Google Cloud Desktop client. The client secret is stored in macOS Keychain.")
                     .font(.callout).foregroundStyle(.secondary)
+                Button("Import Google OAuth JSON…") { importOAuthJSON() }
                 TextField("OAuth client ID", text: $model.clientID)
                     .textFieldStyle(.roundedBorder)
+                SecureField("OAuth client secret", text: $model.clientSecret)
+                    .textFieldStyle(.roundedBorder)
+                Text("You can also paste the client ID and secret manually.")
+                    .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button(model.isConnected ? "Reconnect Google Account" : "Connect Google Account") {
                         Task { await model.connect() }
                     }
-                    .disabled(model.clientID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.isSyncing)
+                    .disabled(!model.hasOAuthClientConfiguration || model.isSyncing)
                     Button("Refresh Now") { Task { await model.refresh() } }
                         .disabled(!model.isConnected || model.isSyncing)
                     if model.isConnected { Button("Disconnect", role: .destructive) { model.disconnect() } }
@@ -45,8 +51,19 @@ struct ConfigurationView: View {
         }
         .formStyle(.grouped)
         .padding()
-        .frame(minWidth: 610, minHeight: 430)
+        .frame(minWidth: 610, minHeight: 510)
         .onAppear { refreshLoginStatus() }
+    }
+
+    private func importOAuthJSON() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose Google OAuth Client JSON"
+        panel.prompt = "Import"
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do { model.importOAuthClientJSON(try Data(contentsOf: url)) }
+        catch { model.statusMessage = error.localizedDescription }
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
@@ -81,7 +98,7 @@ struct ConfigurationView: View {
 @MainActor
 final class ConfigurationWindowController: NSWindowController {
     init(model: AppModel) {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 650, height: 470), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 650, height: 550), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = AppIdentity.name
         window.contentView = NSHostingView(rootView: ConfigurationView(model: model))
         window.center()
