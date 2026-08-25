@@ -134,10 +134,29 @@ private struct AboutMeetingAssistantView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 18) {
+                if let icon = NSApp.applicationIconImage {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .interpolation(.high)
+                        .frame(width: 92, height: 92)
+                        .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Meeting Assistant")
+                        .font(.title.bold())
+                    Text("Because calendars are apparently too subtle.")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Text("Why did I create this app?")
-                .font(.title2.bold())
-            Text("I kept arriving late to meetings. Google gave me a five-minute warning and Slack gave me a one-minute warning, but neither was persistent. I keep popup notifications turned off, so those reminders were easy to miss.")
-            Text("Meeting Assistant provides a reminder that stays visible until I act. It only cares about meetings with more than one participant—I do not need a reminder to join a meeting when I am the only person there. Meetings I declined or did not accept are ignored as well.")
+                .font(.title3.bold())
+            Text("I kept arriving late to meetings. Google gave me a five-minute warning. Slack gave me a one-minute warning. Both then vanished with the quiet confidence of notifications that believe their work here is done.")
+            Text("I keep popup notifications turned off, because I prefer doing my job without a small parade of rectangles appearing in the corner. Unfortunately, this also means useful reminders disappear into the notification afterlife.")
+            Text("Meeting Assistant takes a less nuanced approach: it puts a countdown on the screen and keeps it there until I join. Subtle? No. Effective? That is very much the idea.")
+            Text("It only cares about meetings with other people. If I am the sole participant, congratulations—I am already attending. Declined and unaccepted invitations are ignored too. The app is persistent, not rude.")
             Spacer()
             HStack {
                 Spacer()
@@ -145,7 +164,7 @@ private struct AboutMeetingAssistantView: View {
             }
         }
         .padding(24)
-        .frame(width: 500, height: 310)
+        .frame(width: 560, height: 480)
     }
 }
 
