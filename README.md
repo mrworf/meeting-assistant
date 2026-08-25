@@ -11,6 +11,7 @@ Meeting Assistant is a native macOS 14+ menu-bar application that watches the si
 - Acknowledges every currently displayed meeting when any Join/Open Event button succeeds.
 - Has no alert dismissal control. Quit requires a five-second confirmation delay.
 - Refreshes every five minutes and after launch, wake, app activation, and network recovery.
+- Lists the next five qualifying meetings below a divider in the menu-bar menu, showing local start time and summary.
 
 ## Google setup
 

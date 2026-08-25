@@ -3,7 +3,7 @@ import MeetingAssistantCore
 import ServiceManagement
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let model = AppModel()
     private var statusItem: NSStatusItem?
     private var configurationController: ConfigurationWindowController?
@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         quitItem.target = self
         menu.addItem(configureItem)
         menu.addItem(quitItem)
+        menu.addItem(.separator())
+        menu.delegate = self
         item.menu = menu
         statusItem = item
 
@@ -31,6 +33,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         quitApproved ? .terminateNow : .terminateCancel
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        while menu.items.count > 3 { menu.removeItem(at: 3) }
+        for meeting in model.upcomingMeetings {
+            let start = meeting.start.formatted(date: .omitted, time: .shortened)
+            let item = NSMenuItem(title: "\(start) — \(meeting.title)", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
     }
 
     @objc private func configure() {

@@ -44,6 +44,21 @@ public struct AlertPolicy: Sendable {
     }
 }
 
+public struct UpcomingMeetingPolicy: Sendable {
+    public init() {}
+
+    public func meetings(_ meetings: [QualifyingMeeting], after now: Date, limit: Int = 5) -> [QualifyingMeeting] {
+        guard limit > 0 else { return [] }
+        return Array(meetings
+            .filter { $0.start > now }
+            .sorted {
+                if $0.start == $1.start { return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+                return $0.start < $1.start
+            }
+            .prefix(limit))
+    }
+}
+
 public protocol AcknowledgementStoring: Sendable {
     func load() -> Set<String>
     func save(_ identifiers: Set<String>)
@@ -89,4 +104,3 @@ public final class AcknowledgementController: @unchecked Sendable {
         store.save(updated)
     }
 }
-

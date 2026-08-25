@@ -6,6 +6,7 @@ import Network
 @MainActor
 final class AppModel: ObservableObject {
     @Published private(set) var visibleMeetings: [QualifyingMeeting] = []
+    @Published private(set) var upcomingMeetings: [QualifyingMeeting] = []
     @Published private(set) var now = Date()
     @Published private(set) var isConnected = false
     @Published private(set) var isSyncing = false
@@ -27,6 +28,7 @@ final class AppModel: ObservableObject {
     private let syncEngine = CalendarSyncEngine()
     private let acknowledgements = AcknowledgementController(store: UserDefaultsAcknowledgementStore())
     private let policy = AlertPolicy()
+    private let upcomingPolicy = UpcomingMeetingPolicy()
     private let oauthCoordinator = LoopbackOAuthCoordinator()
     private let pathMonitor = NWPathMonitor()
     private var allMeetings: [QualifyingMeeting] = []
@@ -145,6 +147,7 @@ final class AppModel: ObservableObject {
         allMeetings = []
         latchedMeetings = [:]
         visibleMeetings = []
+        upcomingMeetings = []
         isConnected = false
         lastSuccessfulSync = nil
         statusMessage = "Disconnected"
@@ -166,5 +169,7 @@ final class AppModel: ObservableObject {
         latchedMeetings = latchedMeetings.filter { currentIDs.contains($0.key) }
         policy.meetingsToDisplay(allMeetings, acknowledged: acknowledgements.acknowledged, now: now).forEach { latchedMeetings[$0.id] = $0 }
         visibleMeetings = latchedMeetings.values.sorted { $0.start < $1.start }
+        let nextMeetings = upcomingPolicy.meetings(allMeetings, after: now)
+        if upcomingMeetings != nextMeetings { upcomingMeetings = nextMeetings }
     }
 }

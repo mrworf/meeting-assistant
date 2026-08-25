@@ -85,3 +85,13 @@ private func event(
     #expect(visible.map(\.id) == ["soon"])
 }
 
+@Test func upcomingPolicyReturnsOnlyTheNextFiveFutureMeetings() {
+    let now = Date(timeIntervalSince1970: 10_000)
+    let url = URL(string: "https://meet.google.com/abc")!
+    func meeting(_ index: Int, offset: TimeInterval) -> QualifyingMeeting {
+        .init(eventID: "\(index)", occurrenceKey: "\(index)", title: "Meeting \(index)", start: now.addingTimeInterval(offset), end: now.addingTimeInterval(offset + 60), actionURL: url, actionKind: .join)
+    }
+    let input = [meeting(0, offset: -1)] + (1...7).reversed().map { meeting($0, offset: TimeInterval($0 * 60)) }
+    let result = UpcomingMeetingPolicy().meetings(input, after: now)
+    #expect(result.map(\.eventID) == ["1", "2", "3", "4", "5"])
+}
