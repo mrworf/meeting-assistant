@@ -1,0 +1,8 @@
+.build/
+.swiftpm/
+DerivedData/
+MeetingAssistant.app/
+Secrets.xcconfig
+*.xcuserstate
+.DS_Store
+
