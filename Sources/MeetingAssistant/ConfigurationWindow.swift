@@ -153,11 +153,16 @@ private struct AboutMeetingAssistantView: View {
 
             Text("Why did I create this app?")
                 .font(.title3.bold())
-            Text("I kept arriving late to meetings. Google gave me a five-minute warning. Slack gave me a one-minute warning. Both then vanished with the quiet confidence of notifications that believe their work here is done.")
-            Text("I keep popup notifications turned off, because I prefer doing my job without a small parade of rectangles appearing in the corner. Unfortunately, this also means useful reminders disappear into the notification afterlife.")
-            Text("Meeting Assistant takes a less nuanced approach: it puts a countdown on the screen and keeps it there until I join. Subtle? No. Effective? That is very much the idea.")
-            Text("It only cares about meetings with other people. If I am the sole participant, congratulations—I am already attending. Declined and unaccepted invitations are ignored too. The app is persistent, not rude.")
-            Spacer()
+            VStack(alignment: .leading, spacing: 14) {
+                Text("I kept arriving late to meetings. Google gave me a five-minute warning. Slack gave me a one-minute warning. Both then vanished with the quiet confidence of notifications that believe their work here is done.")
+                Text("I keep popup notifications turned off, because I prefer doing my job without a small parade of rectangles appearing in the corner. Unfortunately, this also means useful reminders disappear into the notification afterlife.")
+                Text("Meeting Assistant takes a less nuanced approach: it puts a countdown on the screen and keeps it there until I join. Subtle? No. Effective? That is very much the idea.")
+                Text("It only cares about meetings with other people. If I am the sole participant, congratulations—I am already attending. Declined and unaccepted invitations are ignored too. The app is persistent, not rude.")
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .layoutPriority(1)
+            .textSelection(.enabled)
+            Spacer(minLength: 8)
             HStack {
                 Spacer()
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
