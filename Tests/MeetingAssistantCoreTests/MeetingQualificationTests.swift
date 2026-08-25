@@ -95,3 +95,34 @@ private func event(
     let result = UpcomingMeetingPolicy().meetings(input, after: now)
     #expect(result.map(\.eventID) == ["1", "2", "3", "4", "5"])
 }
+
+@Test func upcomingDaySectionsSeparateDaysAndLabelOnlyDateGaps() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+    let today = try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 25, hour: 9)))
+    let url = URL(string: "https://meet.google.com/abc")!
+    func meeting(_ id: String, dayOffset: Int, hour: Int) -> QualifyingMeeting {
+        let day = calendar.date(byAdding: .day, value: dayOffset, to: today)!
+        let start = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day)!
+        return .init(eventID: id, occurrenceKey: id, title: id, start: start, end: start.addingTimeInterval(60), actionURL: url, actionKind: .join)
+    }
+
+    let sections = UpcomingMeetingDayPolicy().sections([
+        meeting("today", dayOffset: 0, hour: 10),
+        meeting("tomorrow-1", dayOffset: 1, hour: 9),
+        meeting("tomorrow-2", dayOffset: 1, hour: 11),
+        meeting("later", dayOffset: 3, hour: 9),
+    ], relativeTo: today, calendar: calendar)
+
+    #expect(sections.map(\.meetings.count) == [1, 2, 1])
+    #expect(sections.map(\.showsDateHeading) == [false, false, true])
+}
+
+@Test func firstMeetingBeyondTomorrowGetsADateHeading() throws {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+    let today = try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 25, hour: 9)))
+    let start = try #require(calendar.date(byAdding: .day, value: 2, to: today))
+    let meeting = QualifyingMeeting(eventID: "later", occurrenceKey: "later", title: "Later", start: start, end: start.addingTimeInterval(60), actionURL: URL(string: "https://meet.google.com/abc")!, actionKind: .join)
+    #expect(UpcomingMeetingDayPolicy().sections([meeting], relativeTo: today, calendar: calendar).first?.showsDateHeading == true)
+}

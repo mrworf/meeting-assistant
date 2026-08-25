@@ -37,11 +37,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         while menu.items.count > 3 { menu.removeItem(at: 3) }
-        for meeting in model.upcomingMeetings {
-            let start = meeting.start.formatted(date: .omitted, time: .shortened)
-            let item = NSMenuItem(title: "\(start) — \(meeting.title)", action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            menu.addItem(item)
+        let sections = UpcomingMeetingDayPolicy().sections(model.upcomingMeetings, relativeTo: Date())
+        for (sectionIndex, section) in sections.enumerated() {
+            if sectionIndex > 0 { menu.addItem(.separator()) }
+            if section.showsDateHeading {
+                let title = section.day.formatted(.dateTime.weekday(.wide).month(.wide).day())
+                let heading = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+                heading.isEnabled = false
+                menu.addItem(heading)
+            }
+            for meeting in section.meetings {
+                let start = meeting.start.formatted(date: .omitted, time: .shortened)
+                let item = NSMenuItem(title: "\(start) — \(meeting.title)", action: nil, keyEquivalent: "")
+                item.isEnabled = false
+                menu.addItem(item)
+            }
         }
     }
 

@@ -59,6 +59,40 @@ public struct UpcomingMeetingPolicy: Sendable {
     }
 }
 
+public struct UpcomingMeetingDaySection: Equatable, Sendable {
+    public let day: Date
+    public let meetings: [QualifyingMeeting]
+    public let showsDateHeading: Bool
+
+    public init(day: Date, meetings: [QualifyingMeeting], showsDateHeading: Bool) {
+        self.day = day
+        self.meetings = meetings
+        self.showsDateHeading = showsDateHeading
+    }
+}
+
+public struct UpcomingMeetingDayPolicy: Sendable {
+    public init() {}
+
+    public func sections(_ meetings: [QualifyingMeeting], relativeTo now: Date, calendar: Calendar = .current) -> [UpcomingMeetingDaySection] {
+        var result: [UpcomingMeetingDaySection] = []
+        var previousDay = calendar.startOfDay(for: now)
+
+        for meeting in meetings.sorted(by: { $0.start < $1.start }) {
+            let day = calendar.startOfDay(for: meeting.start)
+            if let last = result.last, calendar.isDate(last.day, inSameDayAs: day) {
+                result[result.count - 1] = UpcomingMeetingDaySection(day: last.day, meetings: last.meetings + [meeting], showsDateHeading: last.showsDateHeading)
+                continue
+            }
+
+            let distance = calendar.dateComponents([.day], from: previousDay, to: day).day ?? 0
+            result.append(UpcomingMeetingDaySection(day: day, meetings: [meeting], showsDateHeading: distance > 1))
+            previousDay = day
+        }
+        return result
+    }
+}
+
 public protocol AcknowledgementStoring: Sendable {
     func load() -> Set<String>
     func save(_ identifiers: Set<String>)
