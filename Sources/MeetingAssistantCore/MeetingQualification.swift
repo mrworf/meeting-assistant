@@ -66,10 +66,17 @@ public struct MeetingQualifier: Sendable {
               let (actionURL, actionKind) = resolver.resolve(event)
         else { return nil }
 
-        let occurrenceStart = event.originalStartTime?.dateTime ?? event.start.dateTime ?? "unknown"
+        let scheduledStart = event.start.dateTime ?? "unknown"
+        let originalStart = event.originalStartTime?.dateTime
+        let occurrenceKey: String
+        if let originalStart, originalStart != scheduledStart {
+            occurrenceKey = "\(event.id)|\(originalStart)|rescheduled:\(scheduledStart)"
+        } else {
+            occurrenceKey = "\(event.id)|\(originalStart ?? scheduledStart)"
+        }
         return QualifyingMeeting(
             eventID: event.id,
-            occurrenceKey: "\(event.id)|\(occurrenceStart)",
+            occurrenceKey: occurrenceKey,
             title: event.summary?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty ?? "Untitled meeting",
             start: start,
             end: end,

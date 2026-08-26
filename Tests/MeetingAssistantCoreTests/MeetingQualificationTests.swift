@@ -39,6 +39,28 @@ private func event(
     #expect(MeetingQualifier().qualify(event(organizer: true, selfStatus: "needsAction")) != nil)
 }
 
+@Test func movedRecurringOccurrenceGetsANewAlertIdentity() throws {
+    var original = event(id: "recurring-event")
+    original.originalStartTime = .init(dateTime: start)
+    let originalMeeting = try #require(MeetingQualifier().qualify(original))
+    #expect(originalMeeting.id == "recurring-event|\(start)")
+
+    var moved = original
+    moved.start = .init(dateTime: "2026-08-25T18:15:00Z")
+    moved.end = .init(dateTime: "2026-08-25T18:45:00Z")
+    let movedMeeting = try #require(MeetingQualifier().qualify(moved))
+
+    #expect(movedMeeting.id != originalMeeting.id)
+    #expect(movedMeeting.id == "recurring-event|\(start)|rescheduled:2026-08-25T18:15:00Z")
+    let oneMinuteBeforeMovedStart = try #require(CalendarDateParser.date(from: moved.start.dateTime)).addingTimeInterval(-60)
+    let visible = AlertPolicy(leadTime: 15 * 60).meetingsToDisplay(
+        [movedMeeting],
+        acknowledged: [originalMeeting.id],
+        now: oneMinuteBeforeMovedStart
+    )
+    #expect(visible.map(\.id) == [movedMeeting.id])
+}
+
 @Test func rejectsNonMeetingsAndUnacceptedInvitations() {
     #expect(MeetingQualifier().qualify(event(selfStatus: "tentative")) == nil)
     #expect(MeetingQualifier().qualify(event(otherStatus: "declined")) == nil)
