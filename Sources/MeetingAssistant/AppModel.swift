@@ -163,11 +163,26 @@ final class AppModel: ObservableObject {
     }
 
     func open(_ meeting: QualifyingMeeting) {
-        let currentGroup = visibleMeetings
+        guard openURL(for: meeting) else { return }
+        acknowledgeCurrentGroup()
+    }
+
+    func openFromMenu(_ meeting: QualifyingMeeting) {
+        guard openURL(for: meeting) else { return }
+        guard visibleMeetings.contains(where: { $0.id == meeting.id }) else { return }
+        acknowledgeCurrentGroup()
+    }
+
+    private func openURL(for meeting: QualifyingMeeting) -> Bool {
         guard NSWorkspace.shared.open(meeting.actionURL) else {
             statusMessage = "Could not open \(meeting.actionURL.absoluteString)"
-            return
+            return false
         }
+        return true
+    }
+
+    private func acknowledgeCurrentGroup() {
+        let currentGroup = visibleMeetings
         acknowledgements.acknowledge(currentGroup)
         currentGroup.forEach { latchedMeetings.removeValue(forKey: $0.id) }
         visibleMeetings = []

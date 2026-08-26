@@ -58,11 +58,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     attendeeItem.isEnabled = false
                     attendeeMenu.addItem(attendeeItem)
                 }
+                attendeeMenu.addItem(.separator())
+                let joinItem = NSMenuItem(title: "Join meeting", action: #selector(joinMeetingFromMenu(_:)), keyEquivalent: "")
+                joinItem.target = self
+                joinItem.representedObject = MenuMeetingBox(meeting)
+                joinItem.isEnabled = true
+                attendeeMenu.addItem(joinItem)
                 item.submenu = attendeeMenu
                 item.isEnabled = true
                 menu.addItem(item)
             }
         }
+    }
+
+    @objc private func joinMeetingFromMenu(_ sender: NSMenuItem) {
+        guard let meeting = (sender.representedObject as? MenuMeetingBox)?.meeting else { return }
+        model.openFromMenu(meeting)
     }
 
     @objc private func configure() {
@@ -111,6 +122,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         mainMenu.setSubmenu(editMenu, for: editRoot)
         NSApp.mainMenu = mainMenu
     }
+}
+
+private final class MenuMeetingBox: NSObject {
+    let meeting: QualifyingMeeting
+    init(_ meeting: QualifyingMeeting) { self.meeting = meeting }
 }
 
 @MainActor
