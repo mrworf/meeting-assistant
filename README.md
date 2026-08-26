@@ -8,13 +8,13 @@ The application icon combines a countdown dial, an orange-to-red urgency arc, an
 
 - Qualifies accepted invitations and hosted meetings with at least one other non-declined person.
 - Skips all-day, cancelled, tentative, focus-time, working-location, out-of-office, solo, and room-only events.
-- Offers a persistent 5, 10, or 15-minute warning, pulses orange during the final minute, and flashes red after the start.
+- Offers a persistent 5, 10, or 15-minute warning, pulses orange during the final minute, and flashes red after the start. A newly discovered late meeting only opens a reminder during its first 10 minutes.
 - Defaults to a 48-point corner inset while remaining draggable; action rows highlight on hover, show pressed feedback, and use a pointing-hand cursor.
 - Resolves Google Meet, Zoom, and Microsoft Teams links; otherwise opens the Google Calendar event.
 - Acknowledges every currently displayed meeting when any Join/Open Event button succeeds.
 - Has no alert dismissal control. Quit requires a five-second confirmation delay.
 - Refreshes every five minutes and after launch, wake, app activation, and network recovery.
-- Lists the next five qualifying meetings below a divider in the menu-bar menu, showing local start time and summary. Day changes add another divider; non-consecutive days also show a date heading.
+- Lists up to five active or upcoming qualifying meetings below a divider in the menu-bar menu, showing local start time and summary. Active meetings remain available until their scheduled end. Day changes add another divider; non-consecutive days also show a date heading.
 - Adds an attendee submenu to each upcoming meeting, never includes the signed-in user, and caps the list at five rows with an additional-count summary. Every submenu ends with an always-available **Join meeting** action.
 - Confirms reconnect and disconnect actions and includes an About explanation in Configure.
 

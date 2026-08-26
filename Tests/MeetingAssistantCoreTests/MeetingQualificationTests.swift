@@ -120,25 +120,39 @@ private func event(
     #expect(CountdownPresentation(meetingStart: base.addingTimeInterval(-65), now: base).text == "Late by 01:05")
 }
 
-@Test func policyShowsLeadWindowAndOnlyActiveOverdueMeetings() throws {
+@Test func policyShowsLeadWindowAndOnlyRecentlyStartedMeetings() throws {
     let now = Date(timeIntervalSince1970: 10_000)
     func meeting(_ id: String, start: TimeInterval, end: TimeInterval) -> QualifyingMeeting {
         .init(eventID: id, occurrenceKey: id, title: id, start: now.addingTimeInterval(start), end: now.addingTimeInterval(end), actionURL: URL(string: "https://meet.google.com/abc")!, actionKind: .join)
     }
-    let meetings = [meeting("soon", start: 300, end: 600), meeting("later", start: 301, end: 700), meeting("active", start: -60, end: 60), meeting("ended", start: -120, end: -1)]
+    let meetings = [
+        meeting("soon", start: 300, end: 600),
+        meeting("later", start: 301, end: 700),
+        meeting("active", start: -60, end: 60),
+        meeting("ten-minutes-late", start: -600, end: 60),
+        meeting("too-late", start: -601, end: 60),
+        meeting("ended", start: -120, end: -1),
+    ]
     let visible = AlertPolicy().meetingsToDisplay(meetings, acknowledged: ["active"], now: now)
-    #expect(visible.map(\.id) == ["soon"])
+    #expect(visible.map(\.id) == ["ten-minutes-late", "soon"])
 }
 
-@Test func upcomingPolicyReturnsOnlyTheNextFiveFutureMeetings() {
+@Test func upcomingPolicyIncludesActiveMeetingsAndLimitsTheMenuToFive() {
     let now = Date(timeIntervalSince1970: 10_000)
     let url = URL(string: "https://meet.google.com/abc")!
-    func meeting(_ index: Int, offset: TimeInterval) -> QualifyingMeeting {
-        .init(eventID: "\(index)", occurrenceKey: "\(index)", title: "Meeting \(index)", start: now.addingTimeInterval(offset), end: now.addingTimeInterval(offset + 60), actionURL: url, actionKind: .join)
+    func meeting(_ id: String, start: TimeInterval, end: TimeInterval) -> QualifyingMeeting {
+        .init(eventID: id, occurrenceKey: id, title: "Meeting \(id)", start: now.addingTimeInterval(start), end: now.addingTimeInterval(end), actionURL: url, actionKind: .join)
     }
-    let input = [meeting(0, offset: -1)] + (1...7).reversed().map { meeting($0, offset: TimeInterval($0 * 60)) }
+    let futureMeetings: [QualifyingMeeting] = (1...7).reversed().map { index in
+        let start = TimeInterval(index * 60)
+        return meeting("\(index)", start: start, end: start + 60)
+    }
+    let input: [QualifyingMeeting] = [
+        meeting("ended", start: -1_200, end: -60),
+        meeting("active", start: -900, end: 900),
+    ] + futureMeetings
     let result = UpcomingMeetingPolicy().meetings(input, after: now)
-    #expect(result.map(\.eventID) == ["1", "2", "3", "4", "5"])
+    #expect(result.map(\.eventID) == ["active", "1", "2", "3", "4"])
 }
 
 @Test func upcomingDaySectionsSeparateDaysAndLabelOnlyDateGaps() throws {

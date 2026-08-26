@@ -28,16 +28,23 @@ public struct CountdownPresentation: Equatable, Sendable {
 
 public struct AlertPolicy: Sendable {
     public var leadTime: TimeInterval
+    public var maximumLateTriggerInterval: TimeInterval
 
-    public init(leadTime: TimeInterval = AppIdentity.alertLeadTime) {
+    public init(
+        leadTime: TimeInterval = AppIdentity.alertLeadTime,
+        maximumLateTriggerInterval: TimeInterval = 10 * 60
+    ) {
         self.leadTime = leadTime
+        self.maximumLateTriggerInterval = maximumLateTriggerInterval
     }
 
     public func meetingsToDisplay(_ meetings: [QualifyingMeeting], acknowledged: Set<String>, now: Date) -> [QualifyingMeeting] {
         meetings
             .filter { !acknowledged.contains($0.id) }
             .filter { meeting in
-                if meeting.start <= now { return meeting.end > now }
+                if meeting.start <= now {
+                    return meeting.end > now && now.timeIntervalSince(meeting.start) <= maximumLateTriggerInterval
+                }
                 return meeting.start.timeIntervalSince(now) <= leadTime
             }
             .sorted { $0.start < $1.start }
@@ -50,7 +57,9 @@ public struct UpcomingMeetingPolicy: Sendable {
     public func meetings(_ meetings: [QualifyingMeeting], after now: Date, limit: Int = 5) -> [QualifyingMeeting] {
         guard limit > 0 else { return [] }
         return Array(meetings
-            .filter { $0.start > now }
+            .filter { meeting in
+                meeting.start > now || (meeting.start <= now && meeting.end > now)
+            }
             .sorted {
                 if $0.start == $1.start { return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
                 return $0.start < $1.start
