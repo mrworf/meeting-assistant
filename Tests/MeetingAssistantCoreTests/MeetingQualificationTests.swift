@@ -155,6 +155,20 @@ private func event(
     #expect(result.map(\.eventID) == ["active", "1", "2", "3", "4"])
 }
 
+@Test func upcomingPolicyIdentifiesOnlyMeetingsHappeningNow() {
+    let now = Date(timeIntervalSince1970: 10_000)
+    let url = URL(string: "https://meet.google.com/abc")!
+    func meeting(_ id: String, start: TimeInterval, end: TimeInterval) -> QualifyingMeeting {
+        .init(eventID: id, occurrenceKey: id, title: id, start: now.addingTimeInterval(start), end: now.addingTimeInterval(end), actionURL: url, actionKind: .join)
+    }
+    let policy = UpcomingMeetingPolicy()
+
+    #expect(policy.isActive(meeting("started", start: 0, end: 60), at: now))
+    #expect(policy.isActive(meeting("ongoing", start: -900, end: 60), at: now))
+    #expect(!policy.isActive(meeting("future", start: 1, end: 60), at: now))
+    #expect(!policy.isActive(meeting("ended", start: -60, end: 0), at: now))
+}
+
 @Test func upcomingDaySectionsSeparateDaysAndLabelOnlyDateGaps() throws {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))

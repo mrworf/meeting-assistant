@@ -54,11 +54,15 @@ public struct AlertPolicy: Sendable {
 public struct UpcomingMeetingPolicy: Sendable {
     public init() {}
 
+    public func isActive(_ meeting: QualifyingMeeting, at now: Date) -> Bool {
+        meeting.start <= now && meeting.end > now
+    }
+
     public func meetings(_ meetings: [QualifyingMeeting], after now: Date, limit: Int = 5) -> [QualifyingMeeting] {
         guard limit > 0 else { return [] }
         return Array(meetings
             .filter { meeting in
-                meeting.start > now || (meeting.start <= now && meeting.end > now)
+                meeting.start > now || isActive(meeting, at: now)
             }
             .sorted {
                 if $0.start == $1.start { return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }

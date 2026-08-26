@@ -38,7 +38,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         while menu.items.count > 3 { menu.removeItem(at: 3) }
-        let sections = UpcomingMeetingDayPolicy().sections(model.upcomingMeetings, relativeTo: Date())
+        let now = Date()
+        let upcomingPolicy = UpcomingMeetingPolicy()
+        let sections = UpcomingMeetingDayPolicy().sections(model.upcomingMeetings, relativeTo: now)
         for (sectionIndex, section) in sections.enumerated() {
             if sectionIndex > 0 { menu.addItem(.separator()) }
             if section.showsDateHeading {
@@ -49,7 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             for meeting in section.meetings {
                 let start = meeting.start.formatted(date: .omitted, time: .shortened)
-                let item = NSMenuItem(title: "\(start) — \(meeting.title)", action: nil, keyEquivalent: "")
+                let currentPrefix = upcomingPolicy.isActive(meeting, at: now) ? "» " : ""
+                let item = NSMenuItem(title: "\(currentPrefix)\(start) — \(meeting.title)", action: nil, keyEquivalent: "")
                 let attendeeMenu = NSMenu(title: "Participants")
                 attendeeMenu.autoenablesItems = false
                 let attendees = ParticipantListPolicy().displayEntries(meeting.participants)
