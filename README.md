@@ -6,7 +6,7 @@ The application icon combines a countdown dial, an orange-to-red urgency arc, an
 
 ## Behavior
 
-- Qualifies accepted invitations and hosted meetings with at least one other non-declined person, including large meetings whose attendee list Google omits.
+- Qualifies accepted invitations and hosted meetings with at least one other non-declined person, including meetings where Google returns only the signed-in attendee plus an external organizer or explicitly marks the attendee list as omitted.
 - Skips all-day, cancelled, tentative, focus-time, working-location, out-of-office, solo, and room-only events.
 - Offers a persistent 5, 10, or 15-minute warning, pulses orange during the final minute, and flashes red after the start. A newly discovered late meeting only opens a reminder during its first 10 minutes.
 - Defaults to a 48-point corner inset while remaining draggable; action rows highlight on hover, show pressed feedback, and use a pointing-hand cursor.

@@ -26,7 +26,7 @@ private func event(
         eventType: eventType,
         start: allDay ? .init(date: "2026-08-25") : .init(dateTime: start),
         end: allDay ? .init(date: "2026-08-26") : .init(dateTime: end),
-        organizer: .init(selfUser: organizer),
+        organizer: organizer ? .init(selfUser: true) : nil,
         attendees: [
             .init(email: "me@example.com", selfUser: true, responseStatus: selfStatus),
             .init(email: "you@example.com", responseStatus: otherStatus),
@@ -89,6 +89,22 @@ private func event(
 
     value.attendeesOmitted = false
     #expect(MeetingQualifier().qualify(value) == nil)
+}
+
+@Test func acceptsMeetingWhenGoogleReturnsOnlySelfAndAnExternalOrganizer() throws {
+    var value = event()
+    value.organizer = .init(
+        email: "organizer@example.com",
+        displayName: "Product Demo Organizer",
+        selfUser: false
+    )
+    value.attendees = [
+        .init(email: "me@example.com", selfUser: true, responseStatus: "accepted"),
+    ]
+    value.attendeesOmitted = nil
+
+    let meeting = try #require(MeetingQualifier().qualify(value))
+    #expect(meeting.participants == ["Product Demo Organizer"])
 }
 
 @Test func decodesGoogleAttendeesOmittedSignal() throws {
