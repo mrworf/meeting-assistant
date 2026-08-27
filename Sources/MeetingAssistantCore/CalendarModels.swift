@@ -63,6 +63,7 @@ public struct GoogleCalendarEvent: Codable, Equatable, Sendable {
     public var originalStartTime: EventDate?
     public var organizer: Person?
     public var attendees: [Person]?
+    public var attendeesOmitted: Bool?
     public var conferenceData: ConferenceData?
 
     public init(
@@ -79,6 +80,7 @@ public struct GoogleCalendarEvent: Codable, Equatable, Sendable {
         originalStartTime: EventDate? = nil,
         organizer: Person? = nil,
         attendees: [Person]? = nil,
+        attendeesOmitted: Bool? = nil,
         conferenceData: ConferenceData? = nil
     ) {
         self.id = id
@@ -94,6 +96,7 @@ public struct GoogleCalendarEvent: Codable, Equatable, Sendable {
         self.originalStartTime = originalStartTime
         self.organizer = organizer
         self.attendees = attendees
+        self.attendeesOmitted = attendeesOmitted
         self.conferenceData = conferenceData
     }
 }

@@ -92,7 +92,8 @@ public struct MeetingQualifier: Sendable {
     }
 
     private func hasAnotherParticipant(_ event: GoogleCalendarEvent) -> Bool {
-        event.attendees?.contains {
+        if event.attendeesOmitted == true { return true }
+        return event.attendees?.contains {
             $0.selfUser != true && $0.resource != true && $0.responseStatus != "declined"
         } == true
     }

@@ -77,6 +77,34 @@ private func event(
     #expect(MeetingQualifier().qualify(value) == nil)
 }
 
+@Test func acceptsGroupMeetingWhenGoogleOmitsLargeAttendeeList() throws {
+    var value = event()
+    value.attendees = [
+        .init(email: "me@example.com", selfUser: true, responseStatus: "accepted"),
+    ]
+    value.attendeesOmitted = true
+
+    let meeting = try #require(MeetingQualifier().qualify(value))
+    #expect(meeting.participants.isEmpty)
+
+    value.attendeesOmitted = false
+    #expect(MeetingQualifier().qualify(value) == nil)
+}
+
+@Test func decodesGoogleAttendeesOmittedSignal() throws {
+    let data = Data("""
+        {
+          "id": "large-event",
+          "start": { "dateTime": "2026-08-25T18:00:00Z" },
+          "end": { "dateTime": "2026-08-25T18:30:00Z" },
+          "attendeesOmitted": true
+        }
+        """.utf8)
+
+    let decoded = try JSONDecoder().decode(GoogleCalendarEvent.self, from: data)
+    #expect(decoded.attendeesOmitted == true)
+}
+
 @Test func participantNamesExcludeSelfDeclinedResourcesAndDuplicates() throws {
     var value = event(organizer: false)
     value.organizer = .init(email: "organizer@example.com", displayName: "Organizer")
