@@ -21,8 +21,10 @@ public protocol CalendarSnapshotStoring: Sendable {
 }
 
 public final class UserDefaultsCalendarSnapshotStore: CalendarSnapshotStoring, @unchecked Sendable {
+    private static let currentSchemaVersion = 2
     private let defaults: UserDefaults
     private let key: String
+    private var schemaVersionKey: String { "\(key).schemaVersion" }
 
     public init(defaults: UserDefaults = .standard, key: String = "googleCalendarSnapshot") {
         self.defaults = defaults
@@ -30,15 +32,22 @@ public final class UserDefaultsCalendarSnapshotStore: CalendarSnapshotStoring, @
     }
 
     public func load() -> CalendarSnapshot {
+        guard defaults.integer(forKey: schemaVersionKey) == Self.currentSchemaVersion else {
+            return CalendarSnapshot()
+        }
         guard let data = defaults.data(forKey: key), let value = try? JSONDecoder().decode(CalendarSnapshot.self, from: data) else { return CalendarSnapshot() }
         return value
     }
 
     public func save(_ snapshot: CalendarSnapshot) {
         defaults.set(try? JSONEncoder().encode(snapshot), forKey: key)
+        defaults.set(Self.currentSchemaVersion, forKey: schemaVersionKey)
     }
 
-    public func clear() { defaults.removeObject(forKey: key) }
+    public func clear() {
+        defaults.removeObject(forKey: key)
+        defaults.removeObject(forKey: schemaVersionKey)
+    }
 }
 
 public actor CalendarSyncEngine {

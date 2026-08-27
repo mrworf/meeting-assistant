@@ -117,6 +117,21 @@ struct GoogleServicesTests {
     #expect(page.items.isEmpty)
 }
 
+@Test func snapshotStoreInvalidatesCacheFromBeforeAttendeeOmissionSupport() throws {
+    let suiteName = "MeetingAssistantTests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let key = "calendarSnapshot"
+    let legacySnapshot = CalendarSnapshot(syncToken: "legacy-token", lastFullSync: Date())
+    defaults.set(try JSONEncoder().encode(legacySnapshot), forKey: key)
+    let store = UserDefaultsCalendarSnapshotStore(defaults: defaults, key: key)
+
+    #expect(store.load() == CalendarSnapshot())
+
+    store.save(legacySnapshot)
+    #expect(store.load() == legacySnapshot)
+}
+
 @Test func syncEngineRecoversFromExpiredSyncToken() async throws {
     let store = MemorySnapshotStore()
     store.snapshot = CalendarSnapshot(syncToken: "expired", lastFullSync: Date())

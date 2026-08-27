@@ -14,6 +14,7 @@ The application icon combines a countdown dial, an orange-to-red urgency arc, an
 - Acknowledges every currently displayed meeting when any Join/Open Event button succeeds.
 - Has no alert dismissal control. Quit requires a five-second confirmation delay.
 - Refreshes every five minutes and after launch, wake, app activation, and network recovery.
+- Invalidates incompatible calendar snapshots after upgrades so newly supported Google event fields are populated by an immediate full sync.
 - Lists up to five active or upcoming qualifying meetings below a divider in the menu-bar menu, showing local start time and summary. Active meetings remain available until their scheduled end and are prefixed with `»`. Day changes add another divider; non-consecutive days also show a date heading.
 - Adds an attendee submenu to each upcoming meeting, never includes the signed-in user, and caps the list at five rows with an additional-count summary. Every submenu ends with an always-available **Join meeting** action.
 - Confirms reconnect and disconnect actions and includes an About explanation in Configure.
