@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-package:
+    name: Test and package
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+      CLANG_MODULE_CACHE_PATH: ${{ github.workspace }}/.build/cache/clang
+      SWIFTPM_MODULECACHE_OVERRIDE: ${{ github.workspace }}/.build/cache/swiftpm
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Prepare Swift caches
+        run: mkdir -p "$CLANG_MODULE_CACHE_PATH" "$SWIFTPM_MODULECACHE_OVERRIDE"
+
+      - name: Run tests
+        run: swift test --disable-sandbox
+
+      - name: Build universal app
+        run: ./scripts/build-app.sh --universal
+
+      - name: Verify architectures and signature
+        run: |
+          binary="MeetingAssistant.app/Contents/MacOS/MeetingAssistant"
+          architectures="$(lipo -archs "$binary")"
+          for required_architecture in arm64 x86_64; do
+            if [[ " $architectures " != *" $required_architecture "* ]]; then
+              echo "Missing required architecture: $required_architecture" >&2
+              exit 1
+            fi
+          done
+          codesign --verify --deep --strict --verbose=2 MeetingAssistant.app
+
+      - name: Create installable archive
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: ditto -c -k --sequesterRsrc --keepParent MeetingAssistant.app MeetingAssistant-macOS-universal.zip
+
+      - name: Upload installable archive
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7
+        with:
+          path: MeetingAssistant-macOS-universal.zip
+          archive: false
+          if-no-files-found: error

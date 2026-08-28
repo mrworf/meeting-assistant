@@ -42,12 +42,19 @@ public struct AlertPolicy: Sendable {
         meetings
             .filter { !acknowledged.contains($0.id) }
             .filter { meeting in
+                guard shouldRemainVisible(meeting, now: now) else { return false }
                 if meeting.start <= now {
-                    return meeting.end > now && now.timeIntervalSince(meeting.start) <= maximumLateTriggerInterval
+                    return true
                 }
                 return meeting.start.timeIntervalSince(now) <= leadTime
             }
             .sorted { $0.start < $1.start }
+    }
+
+    public func shouldRemainVisible(_ meeting: QualifyingMeeting, now: Date) -> Bool {
+        guard meeting.end > now else { return false }
+        guard meeting.start <= now else { return true }
+        return now.timeIntervalSince(meeting.start) < maximumLateTriggerInterval
     }
 }
 

@@ -4,17 +4,17 @@
   <p><strong>Because calendars are apparently too subtle.</strong></p>
 </div>
 
-Meeting Assistant is a native macOS 14+ menu-bar app that watches your primary Google Calendar and makes it exceptionally difficult to arrive late to a meeting. Before an accepted group meeting begins, it places a persistent countdown above your other windows on every display. The reminder cannot be dismissed: joining the meeting—or quitting the app after a deliberately inconvenient confirmation delay—is the way out.
+Meeting Assistant is a native macOS 14+ menu-bar app that watches your primary Google Calendar and makes it exceptionally difficult to arrive late to a meeting. Before an accepted group meeting begins, it places a persistent countdown above your other windows on every display. The reminder cannot be dismissed manually: it closes when you join, when the meeting ends, or once you are ten minutes late.
 
 ## Why it exists
 
 I kept arriving late to meetings. Google Calendar gave me a five-minute warning, Slack gave me a one-minute warning, and both vanished with the quiet confidence of notifications that believed their work was done. I also keep popup notifications turned off because I prefer doing my job without a small parade of rectangles appearing in the corner.
 
-Meeting Assistant is the less nuanced response. It puts the countdown on screen and keeps it there until I join. It only cares about meetings with other people: if I am the sole participant, congratulations, I am already attending. Declined, tentative, and unaccepted invitations are ignored too. The app is persistent, not rude.
+Meeting Assistant is the less nuanced response. It puts the countdown on screen and keeps it there until I join or the reminder expires. It only cares about meetings with other people: if I am the sole participant, congratulations, I am already attending. Declined, tentative, and unaccepted invitations are ignored too. The app is persistent, not rude.
 
 ## How it works
 
-Choose a 5, 10, or 15-minute lead time. The reminder starts calmly, turns orange and pulses during the final minute, then flashes red after the scheduled start. A newly discovered late meeting only opens a reminder during its first ten minutes.
+Choose a 5, 10, or 15-minute lead time. The reminder starts calmly, turns orange and pulses during the final minute, then flashes red after the scheduled start. It closes at the meeting's scheduled end or when you become ten minutes late, whichever happens first. A newly discovered late meeting only opens during that same window.
 
 <table>
   <tr>
@@ -75,6 +75,16 @@ swift test --disable-sandbox
 
 The build script creates `MeetingAssistant.app` in the repository root and ad-hoc signs it. It builds for the architecture of the Mac running the script.
 
+To create a universal app that supports both Apple Silicon and Intel Macs, run:
+
+```sh
+./scripts/build-app.sh --universal
+```
+
+### Continuous integration
+
+The GitHub Actions CI workflow runs the tests and verifies a universal, ad-hoc signed app build for every pull request. After a successful merge or direct push to `main`, the workflow also publishes `MeetingAssistant-macOS-universal.zip` as an artifact on that workflow run. Pull request runs do not publish installable artifacts.
+
 ### Project structure
 
 - `Sources/MeetingAssistantCore` contains Calendar decoding and synchronization, meeting qualification, URL resolution, alert policy, OAuth, and persistence.
@@ -84,7 +94,9 @@ The build script creates `MeetingAssistant.app` in the repository root and ad-ho
 
 ## Install and configure
 
-The current build is ad-hoc signed rather than Developer ID-signed and notarized. It is appropriate for local use and testing, but a Mac receiving the app from someone else may show a Gatekeeper warning.
+Packaged builds are ad-hoc signed rather than Developer ID-signed and notarized. They are appropriate for local use and testing, but a Mac receiving the app from someone else may show a Gatekeeper warning.
+
+For a CI build, open the successful `main` workflow run in the repository's **Actions** tab, download `MeetingAssistant-macOS-universal.zip`, and unzip it before following these steps:
 
 1. Quit any existing copy of Meeting Assistant.
 2. Move `MeetingAssistant.app` into `/Applications`.

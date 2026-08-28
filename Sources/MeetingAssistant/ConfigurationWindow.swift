@@ -57,7 +57,7 @@ struct ConfigurationView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                Text("The reminder cannot be dismissed. Joining any displayed meeting acknowledges the current group.")
+                Text("The reminder cannot be dismissed manually. It closes when you join, when the meeting ends, or after you are ten minutes late.")
                     .font(.callout).foregroundStyle(.secondary)
             }
 

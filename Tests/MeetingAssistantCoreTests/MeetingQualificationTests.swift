@@ -173,12 +173,42 @@ private func event(
         meeting("soon", start: 300, end: 600),
         meeting("later", start: 301, end: 700),
         meeting("active", start: -60, end: 60),
+        meeting("nine-minutes-late", start: -599, end: 60),
         meeting("ten-minutes-late", start: -600, end: 60),
         meeting("too-late", start: -601, end: 60),
         meeting("ended", start: -120, end: -1),
     ]
     let visible = AlertPolicy().meetingsToDisplay(meetings, acknowledged: ["active"], now: now)
-    #expect(visible.map(\.id) == ["ten-minutes-late", "soon"])
+    #expect(visible.map(\.id) == ["nine-minutes-late", "soon"])
+}
+
+@Test func visibleReminderExpiresAtMeetingEndOrTenMinutesLate() {
+    let start = Date(timeIntervalSince1970: 10_000)
+    let url = URL(string: "https://meet.google.com/abc")!
+    let policy = AlertPolicy()
+    let shortMeeting = QualifyingMeeting(
+        eventID: "short",
+        occurrenceKey: "short",
+        title: "Short",
+        start: start,
+        end: start.addingTimeInterval(5 * 60),
+        actionURL: url,
+        actionKind: .join
+    )
+    let longMeeting = QualifyingMeeting(
+        eventID: "long",
+        occurrenceKey: "long",
+        title: "Long",
+        start: start,
+        end: start.addingTimeInterval(30 * 60),
+        actionURL: url,
+        actionKind: .join
+    )
+
+    #expect(policy.shouldRemainVisible(shortMeeting, now: start.addingTimeInterval(5 * 60 - 1)))
+    #expect(!policy.shouldRemainVisible(shortMeeting, now: start.addingTimeInterval(5 * 60)))
+    #expect(policy.shouldRemainVisible(longMeeting, now: start.addingTimeInterval(10 * 60 - 1)))
+    #expect(!policy.shouldRemainVisible(longMeeting, now: start.addingTimeInterval(10 * 60)))
 }
 
 @Test func upcomingPolicyIncludesActiveMeetingsAndLimitsTheMenuToFive() {

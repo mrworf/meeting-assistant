@@ -190,8 +190,10 @@ final class AppModel: ObservableObject {
 
     private func recalculateVisibleMeetings() {
         let currentIDs = Set(allMeetings.map(\.id))
-        latchedMeetings = latchedMeetings.filter { currentIDs.contains($0.key) }
         let alertPolicy = AlertPolicy(leadTime: TimeInterval(alertLeadMinutes * 60))
+        latchedMeetings = latchedMeetings.filter {
+            currentIDs.contains($0.key) && alertPolicy.shouldRemainVisible($0.value, now: now)
+        }
         alertPolicy.meetingsToDisplay(allMeetings, acknowledged: acknowledgements.acknowledged, now: now).forEach { latchedMeetings[$0.id] = $0 }
         visibleMeetings = latchedMeetings.values.sorted { $0.start < $1.start }
         let nextMeetings = upcomingPolicy.meetings(allMeetings, after: now)
