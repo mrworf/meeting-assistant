@@ -4,13 +4,14 @@ import ServiceManagement
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private let model = AppModel()
+    private lazy var model = AppModel()
     private var statusItem: NSStatusItem?
     private var configurationController: ConfigurationWindowController?
     private var alertPanels: AlertPanelController?
     private var quitApproved = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        migrateLegacyNamespaceIfNeeded()
         installEditMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "calendar.badge.clock", accessibilityDescription: AppIdentity.name)
@@ -30,6 +31,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alertPanels = AlertPanelController(model: model)
         registerLaunchAtLoginOnFirstRun()
         model.start()
+    }
+
+    private func migrateLegacyNamespaceIfNeeded() {
+        guard Bundle.main.bundleIdentifier == AppIdentity.bundleIdentifier else { return }
+        let defaults = UserDefaults.standard
+        let migrationKey = "didMigrateFrom.\(AppIdentity.legacyBundleIdentifier)"
+        guard !defaults.bool(forKey: migrationKey) else { return }
+
+        if let legacyValues = defaults.persistentDomain(forName: AppIdentity.legacyBundleIdentifier) {
+            for (key, value) in legacyValues where key != "didConfigureLaunchAtLogin" && defaults.object(forKey: key) == nil {
+                defaults.set(value, forKey: key)
+            }
+        }
+
+        do {
+            let currentSecret = KeychainStringStore(account: "google-oauth-client-secret")
+            let legacySecret = KeychainStringStore(service: AppIdentity.legacyBundleIdentifier, account: "google-oauth-client-secret")
+            if try currentSecret.load() == nil, let value = try legacySecret.load() {
+                try currentSecret.save(value)
+            }
+
+            let currentCredential = KeychainCredentialStore()
+            let legacyCredential = KeychainCredentialStore(service: AppIdentity.legacyBundleIdentifier)
+            if try currentCredential.load() == nil, let value = try legacyCredential.load() {
+                try currentCredential.save(value)
+            }
+            defaults.set(true, forKey: migrationKey)
+        } catch {
+            // Retry on the next launch if Keychain access is temporarily unavailable.
+        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

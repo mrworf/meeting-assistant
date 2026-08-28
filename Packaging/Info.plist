@@ -9,7 +9,7 @@
     <key>CFBundleExecutable</key>
     <string>MeetingAssistant</string>
     <key>CFBundleIdentifier</key>
-    <string>com.henricandersson.MeetingAssistant</string>
+    <string>nu.sensenet.meetingassistant</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleInfoDictionaryVersion</key>
