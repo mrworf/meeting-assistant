@@ -113,4 +113,4 @@ For a CI build, open the successful `main` workflow run in the repository's **Ac
 5. In Meeting Assistant, click **Import Google OAuth JSON…** and select that file.
 6. Click **Connect Google Account** and complete authorization in your browser.
 
-Meeting Assistant requests only the read-only Calendar scope: `https://www.googleapis.com/auth/calendar.readonly`. The imported client secret and refresh credentials are stored in macOS Keychain. The credentials JSON is not copied into the repository or app bundle; calendar state and non-sensitive preferences are stored in the app's user defaults.
+Meeting Assistant requests only the read-only Calendar scope: `https://www.googleapis.com/auth/calendar.readonly`. The imported client secret and refresh credentials are stored in macOS Keychain. The credentials JSON is not copied into the repository or app bundle. To restore reminders after an offline launch, the app stores only reminder-ready meeting fields—identifiers, title, times, action URL, action type, and participant display strings—in user defaults; raw Calendar API entries are discarded after synchronization.

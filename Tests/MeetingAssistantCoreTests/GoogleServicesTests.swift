@@ -41,6 +41,43 @@ private final class LockedCounter: @unchecked Sendable {
     func read() -> Int { lock.withLock { value } }
 }
 
+private struct EncodableEventsPage: Encodable {
+    let items: [GoogleCalendarEvent]
+    let nextSyncToken: String
+}
+
+private func eventsPageData(_ events: [GoogleCalendarEvent], syncToken: String) throws -> Data {
+    try JSONEncoder().encode(EncodableEventsPage(items: events, nextSyncToken: syncToken))
+}
+
+private func cachedTestEvent(
+    status: String = "confirmed",
+    start: String = "2026-08-25T18:00:00Z",
+    end: String = "2026-08-25T18:30:00Z",
+    originalStart: String? = nil,
+    selfStatus: String = "accepted",
+    hasActionURL: Bool = true
+) -> GoogleCalendarEvent {
+    GoogleCalendarEvent(
+        id: "cached-event",
+        status: status,
+        summary: "Required meeting title",
+        description: "PRIVATE-DESCRIPTION-SENTINEL",
+        location: "PRIVATE-LOCATION-SENTINEL",
+        htmlLink: hasActionURL ? "https://calendar.google.com/calendar/event?eid=cached" : nil,
+        hangoutLink: hasActionURL ? "https://meet.google.com/cache-test" : nil,
+        start: .init(dateTime: start),
+        end: .init(dateTime: end),
+        originalStartTime: originalStart.map { .init(dateTime: $0) },
+        organizer: .init(email: "PRIVATE-ORGANIZER-SENTINEL@example.test", displayName: "Organizer"),
+        attendees: [
+            .init(email: "me@example.test", selfUser: true, responseStatus: selfStatus),
+            .init(email: "PRIVATE-ATTENDEE-SENTINEL@example.test", displayName: "Displayed Participant", responseStatus: "accepted"),
+        ],
+        conferenceData: .init(entryPoints: [.init(entryPointType: "phone", uri: "PRIVATE-CONFERENCE-SENTINEL")])
+    )
+}
+
 private func mockSession() -> URLSession {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.protocolClasses = [MockURLProtocol.self]
@@ -117,19 +154,160 @@ struct GoogleServicesTests {
     #expect(page.items.isEmpty)
 }
 
-@Test func snapshotStoreInvalidatesCacheFromBeforeAttendeeOmissionSupport() throws {
+@Test func snapshotStoreDeletesLegacyCacheAndRoundTripsCurrentSchema() throws {
     let suiteName = "MeetingAssistantTests.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
     let key = "calendarSnapshot"
-    let legacySnapshot = CalendarSnapshot(syncToken: "legacy-token", lastFullSync: Date())
-    defaults.set(try JSONEncoder().encode(legacySnapshot), forKey: key)
+    let schemaKey = "\(key).schemaVersion"
+    defaults.set(Data("PRIVATE-LEGACY-CALENDAR-SENTINEL".utf8), forKey: key)
+    defaults.set(2, forKey: schemaKey)
     let store = UserDefaultsCalendarSnapshotStore(defaults: defaults, key: key)
 
     #expect(store.load() == CalendarSnapshot())
+    #expect(defaults.object(forKey: key) == nil)
+    #expect(defaults.object(forKey: schemaKey) == nil)
 
-    store.save(legacySnapshot)
-    #expect(store.load() == legacySnapshot)
+    let currentSnapshot = CalendarSnapshot(syncToken: "current-token", lastFullSync: Date())
+    store.save(currentSnapshot)
+    #expect(defaults.integer(forKey: schemaKey) == 3)
+    #expect(store.load() == currentSnapshot)
+}
+
+@Test func snapshotStoreDeletesUndecodableCurrentCache() throws {
+    let suiteName = "MeetingAssistantTests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let key = "calendarSnapshot"
+    let schemaKey = "\(key).schemaVersion"
+    defaults.set(Data("not-json".utf8), forKey: key)
+    defaults.set(3, forKey: schemaKey)
+    let store = UserDefaultsCalendarSnapshotStore(defaults: defaults, key: key)
+
+    #expect(store.load() == CalendarSnapshot())
+    #expect(defaults.object(forKey: key) == nil)
+    #expect(defaults.object(forKey: schemaKey) == nil)
+}
+
+@Test func legacyCacheRemovalForcesAFullSynchronization() async throws {
+    let suiteName = "MeetingAssistantTests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let key = "calendarSnapshot"
+    defaults.set(Data("PRIVATE-LEGACY-CALENDAR-SENTINEL".utf8), forKey: key)
+    defaults.set(2, forKey: "\(key).schemaVersion")
+    let store = UserDefaultsCalendarSnapshotStore(defaults: defaults, key: key)
+    MockURLProtocol.lock.withLock {
+        MockURLProtocol.handler = { request in
+            let queryItems = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            #expect(!queryItems.contains { $0.name == "syncToken" })
+            #expect(queryItems.contains { $0.name == "timeMin" })
+            #expect(queryItems.contains { $0.name == "timeMax" })
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, try eventsPageData([], syncToken: "fresh-after-migration"))
+        }
+    }
+    let engine = CalendarSyncEngine(api: GoogleCalendarAPI(session: mockSession()), store: store)
+
+    let meetings = try await engine.refresh(accessToken: "access", now: Date(timeIntervalSince1970: 1_777_000_000))
+
+    #expect(meetings.isEmpty)
+    #expect(defaults.integer(forKey: "\(key).schemaVersion") == 3)
+}
+
+@Test func syncPersistsOnlyReminderReadyMeetingFields() async throws {
+    let store = MemorySnapshotStore()
+    MockURLProtocol.lock.withLock {
+        MockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, try eventsPageData([cachedTestEvent()], syncToken: "sync-minimal"))
+        }
+    }
+    let engine = CalendarSyncEngine(api: GoogleCalendarAPI(session: mockSession()), store: store)
+
+    let refreshed = try await engine.refresh(accessToken: "access", now: Date(timeIntervalSince1970: 1_777_000_000))
+    let meeting = try #require(refreshed.first)
+    #expect(refreshed.count == 1)
+    #expect(meeting.title == "Required meeting title")
+    #expect(meeting.actionURL.absoluteString == "https://meet.google.com/cache-test")
+    #expect(meeting.participants == ["Displayed Participant", "Organizer"])
+    let cached = await engine.cachedMeetings()
+    #expect(cached == refreshed)
+
+    let encoded = try JSONEncoder().encode(store.snapshot)
+    let persisted = try #require(String(data: encoded, encoding: .utf8))
+    #expect(!persisted.contains("PRIVATE-DESCRIPTION-SENTINEL"))
+    #expect(!persisted.contains("PRIVATE-LOCATION-SENTINEL"))
+    #expect(!persisted.contains("PRIVATE-ORGANIZER-SENTINEL"))
+    #expect(!persisted.contains("PRIVATE-ATTENDEE-SENTINEL"))
+    #expect(!persisted.contains("PRIVATE-CONFERENCE-SENTINEL"))
+}
+
+@Test func incrementalUpdatesRemoveMeetingsThatNoLongerQualifyOrAreCancelled() async throws {
+    let store = MemorySnapshotStore()
+    let callCount = LockedCounter()
+    MockURLProtocol.lock.withLock {
+        MockURLProtocol.handler = { request in
+            let call = callCount.increment()
+            let event: GoogleCalendarEvent
+            switch call {
+            case 1, 3, 5: event = cachedTestEvent()
+            case 2: event = cachedTestEvent(selfStatus: "declined")
+            case 4: event = cachedTestEvent(hasActionURL: false)
+            default: event = cachedTestEvent(status: "cancelled")
+            }
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, try eventsPageData([event], syncToken: "sync-\(call)"))
+        }
+    }
+    let engine = CalendarSyncEngine(api: GoogleCalendarAPI(session: mockSession()), store: store)
+    let now = Date(timeIntervalSince1970: 1_777_000_000)
+
+    let initiallyQualified = try await engine.refresh(accessToken: "access", now: now)
+    let declined = try await engine.refresh(accessToken: "access", now: now)
+    let qualifiedAgain = try await engine.refresh(accessToken: "access", now: now)
+    let missingAction = try await engine.refresh(accessToken: "access", now: now)
+    let qualifiedBeforeCancellation = try await engine.refresh(accessToken: "access", now: now)
+    let cancelled = try await engine.refresh(accessToken: "access", now: now)
+
+    #expect(initiallyQualified.count == 1)
+    #expect(declined.isEmpty)
+    #expect(qualifiedAgain.count == 1)
+    #expect(missingAction.isEmpty)
+    #expect(qualifiedBeforeCancellation.count == 1)
+    #expect(cancelled.isEmpty)
+    #expect(store.snapshot.meetings.isEmpty)
+}
+
+@Test func rescheduledOccurrenceReplacesStableCachedEntry() async throws {
+    let store = MemorySnapshotStore()
+    let callCount = LockedCounter()
+    let originalStart = "2026-08-25T18:00:00Z"
+    MockURLProtocol.lock.withLock {
+        MockURLProtocol.handler = { request in
+            let call = callCount.increment()
+            let event = call == 1
+                ? cachedTestEvent(start: originalStart)
+                : cachedTestEvent(
+                    start: "2026-08-25T18:15:00Z",
+                    end: "2026-08-25T18:45:00Z",
+                    originalStart: originalStart
+                )
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, try eventsPageData([event], syncToken: "sync-\(call)"))
+        }
+    }
+    let engine = CalendarSyncEngine(api: GoogleCalendarAPI(session: mockSession()), store: store)
+    let now = Date(timeIntervalSince1970: 1_777_000_000)
+
+    let original = try await engine.refresh(accessToken: "access", now: now)
+    let rescheduled = try await engine.refresh(accessToken: "access", now: now)
+
+    #expect(original.count == 1)
+    #expect(rescheduled.count == 1)
+    #expect(store.snapshot.meetings.count == 1)
+    #expect(original[0].id != rescheduled[0].id)
+    #expect(rescheduled[0].id.contains("rescheduled:2026-08-25T18:15:00Z"))
 }
 
 @Test func syncEngineRecoversFromExpiredSyncToken() async throws {

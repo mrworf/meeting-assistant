@@ -1,13 +1,13 @@
 import Foundation
 
 public struct CalendarSnapshot: Codable, Equatable, Sendable {
-    public var events: [String: GoogleCalendarEvent]
+    public var meetings: [String: QualifyingMeeting]
     public var syncToken: String?
     public var lastFullSync: Date?
     public var lastSuccessfulSync: Date?
 
-    public init(events: [String: GoogleCalendarEvent] = [:], syncToken: String? = nil, lastFullSync: Date? = nil, lastSuccessfulSync: Date? = nil) {
-        self.events = events
+    public init(meetings: [String: QualifyingMeeting] = [:], syncToken: String? = nil, lastFullSync: Date? = nil, lastSuccessfulSync: Date? = nil) {
+        self.meetings = meetings
         self.syncToken = syncToken
         self.lastFullSync = lastFullSync
         self.lastSuccessfulSync = lastSuccessfulSync
@@ -21,7 +21,7 @@ public protocol CalendarSnapshotStoring: Sendable {
 }
 
 public final class UserDefaultsCalendarSnapshotStore: CalendarSnapshotStoring, @unchecked Sendable {
-    private static let currentSchemaVersion = 2
+    private static let currentSchemaVersion = 3
     private let defaults: UserDefaults
     private let key: String
     private var schemaVersionKey: String { "\(key).schemaVersion" }
@@ -33,9 +33,13 @@ public final class UserDefaultsCalendarSnapshotStore: CalendarSnapshotStoring, @
 
     public func load() -> CalendarSnapshot {
         guard defaults.integer(forKey: schemaVersionKey) == Self.currentSchemaVersion else {
+            clear()
             return CalendarSnapshot()
         }
-        guard let data = defaults.data(forKey: key), let value = try? JSONDecoder().decode(CalendarSnapshot.self, from: data) else { return CalendarSnapshot() }
+        guard let data = defaults.data(forKey: key), let value = try? JSONDecoder().decode(CalendarSnapshot.self, from: data) else {
+            clear()
+            return CalendarSnapshot()
+        }
         return value
     }
 
@@ -70,11 +74,11 @@ public actor CalendarSyncEngine {
         } catch GoogleCalendarAPIError.fullSyncRequired {
             try await synchronize(accessToken: accessToken, now: now, forceFull: true)
         }
-        return snapshot.events.values.compactMap(qualifier.qualify).sorted { $0.start < $1.start }
+        return snapshot.meetings.values.sorted { $0.start < $1.start }
     }
 
     public func cachedMeetings() -> [QualifyingMeeting] {
-        snapshot.events.values.compactMap(qualifier.qualify).sorted { $0.start < $1.start }
+        snapshot.meetings.values.sorted { $0.start < $1.start }
     }
 
     public func lastSuccessfulSync() -> Date? { snapshot.lastSuccessfulSync }
@@ -99,8 +103,10 @@ public actor CalendarSyncEngine {
             )
             for event in page.items {
                 let key = Self.storageKey(event)
-                if event.status == "cancelled" { updated.events.removeValue(forKey: key) }
-                else { updated.events[key] = event }
+                updated.meetings.removeValue(forKey: key)
+                if event.status != "cancelled", let meeting = qualifier.qualify(event) {
+                    updated.meetings[key] = meeting
+                }
             }
             pageToken = page.nextPageToken
             finalSyncToken = page.nextSyncToken ?? finalSyncToken
