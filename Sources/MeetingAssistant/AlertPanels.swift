@@ -15,6 +15,7 @@ struct AlertContentView: View {
                 .monospacedDigit()
                 .frame(maxWidth: .infinity, alignment: .center)
                 .accessibilityLabel(presentation?.text ?? "")
+                .overlay(WindowDragArea())
 
             ForEach(model.visibleMeetings) { meeting in
                 MeetingActionButton(meeting: meeting, status: rowStatus(meeting)) {
@@ -117,6 +118,19 @@ private struct PhaseBackground: View {
     }
 }
 
+private struct WindowDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { DragView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class DragView: NSView {
+        override func mouseDown(with event: NSEvent) {
+            window?.performDrag(with: event)
+        }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    }
+}
+
 @MainActor
 final class AlertPanelController: NSObject, NSWindowDelegate {
     private let model: AppModel
@@ -161,6 +175,7 @@ final class AlertPanelController: NSObject, NSWindowDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
+        panel.isMovable = true
         panel.isMovableByWindowBackground = true
         panel.becomesKeyOnlyIfNeeded = true
         panel.delegate = self

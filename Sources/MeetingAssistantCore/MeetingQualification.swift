@@ -87,8 +87,9 @@ public struct MeetingQualifier: Sendable {
     }
 
     private func isAccepted(_ event: GoogleCalendarEvent) -> Bool {
-        if event.organizer?.selfUser == true { return true }
-        return event.attendees?.first(where: { $0.selfUser == true })?.responseStatus == "accepted"
+        let selfResponse = event.attendees?.first(where: { $0.selfUser == true })?.responseStatus
+        if event.organizer?.selfUser == true { return selfResponse != "declined" }
+        return selfResponse == "accepted"
     }
 
     private func hasAnotherParticipant(_ event: GoogleCalendarEvent) -> Bool {

@@ -8,7 +8,7 @@ private let end = "2026-08-25T18:30:00Z"
 private func event(
     id: String = "event-1",
     organizer: Bool = false,
-    selfStatus: String = "accepted",
+    selfStatus: String? = "accepted",
     otherStatus: String = "accepted",
     allDay: Bool = false,
     eventType: String = "default",
@@ -39,6 +39,22 @@ private func event(
     #expect(MeetingQualifier().qualify(event(organizer: true, selfStatus: "needsAction")) != nil)
 }
 
+@Test func hostedMeetingsOnlyRejectAnExplicitDecline() {
+    let qualifier = MeetingQualifier()
+    let qualifyingStatuses: [String?] = ["accepted", "tentative", "needsAction", nil]
+
+    for status in qualifyingStatuses {
+        #expect(qualifier.qualify(event(organizer: true, selfStatus: status)) != nil)
+    }
+    #expect(qualifier.qualify(event(organizer: true, selfStatus: "declined")) == nil)
+
+    var withoutSelfAttendee = event(organizer: true)
+    withoutSelfAttendee.attendees = [
+        .init(email: "you@example.com", responseStatus: "accepted"),
+    ]
+    #expect(qualifier.qualify(withoutSelfAttendee) != nil)
+}
+
 @Test func movedRecurringOccurrenceGetsANewAlertIdentity() throws {
     var original = event(id: "recurring-event")
     original.originalStartTime = .init(dateTime: start)
@@ -63,6 +79,9 @@ private func event(
 
 @Test func rejectsNonMeetingsAndUnacceptedInvitations() {
     #expect(MeetingQualifier().qualify(event(selfStatus: "tentative")) == nil)
+    #expect(MeetingQualifier().qualify(event(selfStatus: "needsAction")) == nil)
+    #expect(MeetingQualifier().qualify(event(selfStatus: "declined")) == nil)
+    #expect(MeetingQualifier().qualify(event(selfStatus: nil)) == nil)
     #expect(MeetingQualifier().qualify(event(otherStatus: "declined")) == nil)
     #expect(MeetingQualifier().qualify(event(allDay: true)) == nil)
     #expect(MeetingQualifier().qualify(event(eventType: "focusTime")) == nil)

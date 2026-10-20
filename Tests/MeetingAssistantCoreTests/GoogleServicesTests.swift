@@ -56,7 +56,8 @@ private func cachedTestEvent(
     end: String = "2026-08-25T18:30:00Z",
     originalStart: String? = nil,
     selfStatus: String = "accepted",
-    hasActionURL: Bool = true
+    hasActionURL: Bool = true,
+    organizerIsSelf: Bool = false
 ) -> GoogleCalendarEvent {
     GoogleCalendarEvent(
         id: "cached-event",
@@ -69,7 +70,7 @@ private func cachedTestEvent(
         start: .init(dateTime: start),
         end: .init(dateTime: end),
         originalStartTime: originalStart.map { .init(dateTime: $0) },
-        organizer: .init(email: "PRIVATE-ORGANIZER-SENTINEL@example.test", displayName: "Organizer"),
+        organizer: .init(email: "PRIVATE-ORGANIZER-SENTINEL@example.test", displayName: "Organizer", selfUser: organizerIsSelf),
         attendees: [
             .init(email: "me@example.test", selfUser: true, responseStatus: selfStatus),
             .init(email: "PRIVATE-ATTENDEE-SENTINEL@example.test", displayName: "Displayed Participant", responseStatus: "accepted"),
@@ -276,6 +277,31 @@ struct GoogleServicesTests {
     #expect(missingAction.isEmpty)
     #expect(qualifiedBeforeCancellation.count == 1)
     #expect(cancelled.isEmpty)
+    #expect(store.snapshot.meetings.isEmpty)
+}
+
+@Test func incrementalOrganizerDeclineRemovesCachedMeeting() async throws {
+    let store = MemorySnapshotStore()
+    let callCount = LockedCounter()
+    MockURLProtocol.lock.withLock {
+        MockURLProtocol.handler = { request in
+            let call = callCount.increment()
+            let event = cachedTestEvent(
+                selfStatus: call == 1 ? "accepted" : "declined",
+                organizerIsSelf: true
+            )
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, try eventsPageData([event], syncToken: "sync-\(call)"))
+        }
+    }
+    let engine = CalendarSyncEngine(api: GoogleCalendarAPI(session: mockSession()), store: store)
+    let now = Date(timeIntervalSince1970: 1_777_000_000)
+
+    let initiallyQualified = try await engine.refresh(accessToken: "access", now: now)
+    let declined = try await engine.refresh(accessToken: "access", now: now)
+
+    #expect(initiallyQualified.count == 1)
+    #expect(declined.isEmpty)
     #expect(store.snapshot.meetings.isEmpty)
 }
 
