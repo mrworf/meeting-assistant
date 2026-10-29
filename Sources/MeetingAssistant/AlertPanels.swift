@@ -9,13 +9,36 @@ struct AlertContentView: View {
     var body: some View {
         let earliest = model.visibleMeetings.first
         let presentation = earliest.map { CountdownPresentation(meetingStart: $0.start, now: model.now) }
+        let end = model.endPresentation
+        let timerText = presentation?.text ?? end?.text ?? ""
         VStack(spacing: 14) {
-            Text(presentation?.text ?? "")
+            Text(timerText)
                 .font(.system(size: 48, weight: .bold, design: .rounded))
                 .monospacedDigit()
                 .frame(maxWidth: .infinity, alignment: .center)
-                .accessibilityLabel(presentation?.text ?? "")
+                .accessibilityLabel(timerText)
                 .overlay(WindowDragArea())
+
+            if presentation == nil, let end {
+                GeometryReader { geometry in
+                    Capsule()
+                        .fill(.white)
+                        .frame(width: geometry.size.width * end.progress)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .frame(height: 6)
+                .accessibilityLabel("Meeting time remaining")
+                .accessibilityValue("\(Int(end.progress * 100)) percent")
+
+                Button(action: model.dismissEndCountdown) {
+                    Text("Dismiss")
+                        .fontWeight(.semibold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                }
+                .buttonStyle(MeetingActionButtonStyle(isHovering: false))
+                .background(PointingHandCursorView())
+            }
 
             ForEach(model.visibleMeetings) { meeting in
                 MeetingActionButton(meeting: meeting, status: rowStatus(meeting)) {
@@ -25,7 +48,7 @@ struct AlertContentView: View {
         }
         .padding(18)
         .foregroundStyle(.white)
-        .background(PhaseBackground(phase: presentation?.phase ?? .upcoming))
+        .background(PhaseBackground(phase: presentation?.phase ?? end?.phase ?? .upcoming))
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(.white.opacity(0.25)))
         .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
@@ -142,8 +165,8 @@ final class AlertPanelController: NSObject, NSWindowDelegate {
     init(model: AppModel) {
         self.model = model
         super.init()
-        cancellable = model.$visibleMeetings.sink { [weak self] meetings in
-            Task { @MainActor in self?.update(meetingCount: meetings.count) }
+        cancellable = model.$visibleMeetings.combineLatest(model.$endPresentation).sink { [weak self] meetings, end in
+            Task { @MainActor in self?.update(meetingCount: meetings.count, showsEnd: end != nil) }
         }
         screenObserver = NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.rebuildPanels() }
@@ -160,12 +183,12 @@ final class AlertPanelController: NSObject, NSWindowDelegate {
         for screen in NSScreen.screens where panels[screenID(screen)] == nil {
             panels[screenID(screen)] = makePanel(for: screen)
         }
-        update(meetingCount: model.visibleMeetings.count)
+        update(meetingCount: model.visibleMeetings.count, showsEnd: model.endPresentation != nil)
     }
 
     private func makePanel(for screen: NSScreen) -> NSPanel {
         let count = max(model.visibleMeetings.count, 1)
-        let size = NSSize(width: 420, height: CGFloat(112 + count * 56))
+        let size = NSSize(width: 420, height: CGFloat(model.endPresentation != nil ? 190 : 112 + count * 56))
         let panel = NSPanel(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         panel.contentView = NSHostingView(rootView: AlertContentView(model: model))
         panel.isOpaque = false
@@ -183,16 +206,16 @@ final class AlertPanelController: NSObject, NSWindowDelegate {
         return panel
     }
 
-    private func update(meetingCount: Int) {
+    private func update(meetingCount: Int, showsEnd: Bool) {
         if Set(panels.keys) != Set(NSScreen.screens.map(screenID)) { rebuildPanels(); return }
         for screen in NSScreen.screens {
             guard let panel = panels[screenID(screen)] else { continue }
-            let desiredHeight = CGFloat(112 + max(meetingCount, 1) * 56)
+            let desiredHeight = CGFloat(showsEnd ? 190 : 112 + max(meetingCount, 1) * 56)
             var frame = panel.frame
             frame.origin.y += frame.height - desiredHeight
             frame.size.height = desiredHeight
             panel.setFrame(clamped(frame, to: screen.visibleFrame), display: true)
-            if meetingCount > 0 { panel.orderFrontRegardless() }
+            if meetingCount > 0 || showsEnd { panel.orderFrontRegardless() }
             else { panel.orderOut(nil) }
         }
     }

@@ -61,6 +61,25 @@ struct ConfigurationView: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
 
+            Section("Meeting-end countdown") {
+                Toggle("Enable meeting-end countdown", isOn: Binding(
+                    get: { model.endCountdownEnabled },
+                    set: { model.setEndCountdownEnabled($0) }
+                ))
+                Picker("Countdown appears before meeting ends", selection: Binding(
+                    get: { model.endCountdownLeadMinutes },
+                    set: { model.setEndCountdownLeadMinutes($0) }
+                )) {
+                    ForEach(AppIdentity.alertLeadMinuteOptions, id: \.self) { minutes in
+                        Text("\(minutes) min").tag(minutes)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .disabled(!model.endCountdownEnabled)
+                Text("Joining from a reminder or the menu starts tracking that meeting. The end countdown can be dismissed and continues into overtime. A new meeting reminder replaces it.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+
             Section {
                 HStack {
                     Spacer()

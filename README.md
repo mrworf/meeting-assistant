@@ -16,6 +16,9 @@ Meeting Assistant is the less nuanced response. It puts the countdown on screen 
 
 Choose a 5, 10, or 15-minute lead time. The reminder starts calmly, turns orange and pulses during the final minute, then flashes red after the scheduled start. It closes at the meeting's scheduled end or when you become ten minutes late, whichever happens first. A newly discovered late meeting only opens during that same window.
 
+An optional **Meeting-end countdown** is disabled by default. Enable it in Configure and choose a separate 5, 10, or 15-minute warning. A successful Join from a reminder or the menu tracks that specific meeting; opening a Calendar event does not. Near the scheduled end, a countdown appears with a white progress bar that empties toward the right and a **Dismiss** button requiring no confirmation. At the end it continues as “Over by MM:SS,” with the bar empty. A regular meeting reminder permanently replaces it. Calendar end-time changes are followed; disabling the feature, disconnecting, or quitting clears the tracked meeting.
+
+
 <table>
   <tr>
     <td align="center"><img src="Documentation/Screenshots/countdown.png" alt="Normal Meeting Assistant countdown showing two minutes remaining"></td>

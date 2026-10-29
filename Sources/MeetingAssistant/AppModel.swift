@@ -12,6 +12,10 @@ final class AppModel: ObservableObject {
     @Published private(set) var isSyncing = false
     @Published private(set) var lastSuccessfulSync: Date?
     @Published private(set) var alertLeadMinutes: Int
+    @Published private(set) var endCountdownEnabled: Bool
+    @Published private(set) var endCountdownLeadMinutes: Int
+    @Published private(set) var endPresentation: MeetingEndPresentation?
+    private var endCountdown = MeetingEndCountdown()
     @Published var statusMessage = "Not connected"
     @Published var launchAtLoginError: String?
     @Published var clientID: String {
@@ -44,6 +48,9 @@ final class AppModel: ObservableObject {
         clientID = UserDefaults.standard.string(forKey: "googleOAuthClientID") ?? ""
         clientSecret = (try? secretStore.load()) ?? ""
         let savedLeadMinutes = UserDefaults.standard.integer(forKey: "alertLeadMinutes")
+        endCountdownEnabled = UserDefaults.standard.bool(forKey: "endCountdownEnabled")
+        let savedEndLead = UserDefaults.standard.integer(forKey: "endCountdownLeadMinutes")
+        endCountdownLeadMinutes = AppIdentity.alertLeadMinuteOptions.contains(savedEndLead) ? savedEndLead : 5
         alertLeadMinutes = AppIdentity.alertLeadMinuteOptions.contains(savedLeadMinutes) ? savedLeadMinutes : 5
     }
 
@@ -56,6 +63,25 @@ final class AppModel: ObservableObject {
         alertLeadMinutes = minutes
         UserDefaults.standard.set(minutes, forKey: "alertLeadMinutes")
         recalculateVisibleMeetings()
+    }
+
+    func setEndCountdownEnabled(_ enabled: Bool) {
+        endCountdownEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: "endCountdownEnabled")
+        if !enabled { endCountdown.clear() }
+        recalculateVisibleMeetings()
+    }
+
+    func setEndCountdownLeadMinutes(_ minutes: Int) {
+        guard AppIdentity.alertLeadMinuteOptions.contains(minutes) else { return }
+        endCountdownLeadMinutes = minutes
+        UserDefaults.standard.set(minutes, forKey: "endCountdownLeadMinutes")
+        recalculateVisibleMeetings()
+    }
+
+    func dismissEndCountdown() {
+        endCountdown.clear()
+        endPresentation = nil
     }
 
     func importOAuthClientJSON(_ data: Data) {
@@ -121,6 +147,7 @@ final class AppModel: ObservableObject {
         do {
             let token = try await oauth.validAccessToken(clientID: clientID, clientSecret: clientSecret)
             allMeetings = try await syncEngine.refresh(accessToken: token)
+            endCountdown.synchronize(allMeetings)
             lastSuccessfulSync = await syncEngine.lastSuccessfulSync()
             isConnected = true
             statusMessage = "Calendar synchronized"
@@ -153,6 +180,7 @@ final class AppModel: ObservableObject {
         do { try oauth.disconnect() }
         catch { statusMessage = error.localizedDescription; return }
         Task { await syncEngine.clear() }
+        dismissEndCountdown()
         allMeetings = []
         latchedMeetings = [:]
         visibleMeetings = []
@@ -164,13 +192,16 @@ final class AppModel: ObservableObject {
 
     func open(_ meeting: QualifyingMeeting) {
         guard openURL(for: meeting) else { return }
+        endCountdown.join(meeting, enabled: endCountdownEnabled, now: Date())
         acknowledgeCurrentGroup()
+        recalculateVisibleMeetings()
     }
 
     func openFromMenu(_ meeting: QualifyingMeeting) {
         guard openURL(for: meeting) else { return }
-        guard visibleMeetings.contains(where: { $0.id == meeting.id }) else { return }
-        acknowledgeCurrentGroup()
+        endCountdown.join(meeting, enabled: endCountdownEnabled, now: Date())
+        if visibleMeetings.contains(where: { $0.id == meeting.id }) { acknowledgeCurrentGroup() }
+        recalculateVisibleMeetings()
     }
 
     private func openURL(for meeting: QualifyingMeeting) -> Bool {
@@ -196,6 +227,7 @@ final class AppModel: ObservableObject {
         }
         alertPolicy.meetingsToDisplay(allMeetings, acknowledged: acknowledgements.acknowledged, now: now).forEach { latchedMeetings[$0.id] = $0 }
         visibleMeetings = latchedMeetings.values.sorted { $0.start < $1.start }
+        endPresentation = endCountdown.presentation(now: now, leadTime: TimeInterval(endCountdownLeadMinutes * 60), regularReminderVisible: !visibleMeetings.isEmpty)
         let nextMeetings = upcomingPolicy.meetings(allMeetings, after: now)
         if upcomingMeetings != nextMeetings { upcomingMeetings = nextMeetings }
     }
