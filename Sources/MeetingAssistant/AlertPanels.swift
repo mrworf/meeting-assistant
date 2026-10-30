@@ -24,7 +24,7 @@ struct AlertContentView: View {
                     Capsule()
                         .fill(.white)
                         .frame(width: geometry.size.width * end.progress)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .frame(maxWidth: .infinity, alignment: .center)
                 }
                 .frame(height: 6)
                 .accessibilityLabel("Meeting time remaining")
