@@ -4,6 +4,13 @@
   <p><strong>Because calendars are apparently too subtle.</strong></p>
 </div>
 
+<!-- downloads:start -->
+<p align="center">
+  <a href="https://github.com/mrworf/meeting-assistant/releases/download/development/MeetingAssistant-macOS-universal.zip"><img src="https://img.shields.io/badge/Latest_build-download-orange?style=for-the-badge" alt="Download latest build"></a>
+  <a href="https://github.com/mrworf/meeting-assistant/releases/download/v1.0.0-alpha/MeetingAssistant-macOS-universal.zip"><img src="https://img.shields.io/badge/Latest_official_version-download-blue?style=for-the-badge" alt="Download latest official version"></a>
+</p>
+<!-- downloads:end -->
+
 Meeting Assistant is a native macOS 14+ menu-bar app that watches your primary Google Calendar and makes it exceptionally difficult to arrive late to a meeting. Before an accepted group meeting begins, it places a persistent countdown above your other windows on every display. The reminder cannot be dismissed manually: it closes when you join, when the meeting ends, or once you are ten minutes late.
 
 ## Why it exists
@@ -86,7 +93,7 @@ To create a universal app that supports both Apple Silicon and Intel Macs, run:
 
 ### Continuous integration
 
-The GitHub Actions CI workflow runs the tests and verifies a universal, ad-hoc signed app build for every pull request. After a successful merge or direct push to `main`, the workflow also publishes `MeetingAssistant-macOS-universal.zip` as an artifact on that workflow run. Pull request runs do not publish installable artifacts.
+The GitHub Actions CI workflow runs the tests and verifies a universal, ad-hoc signed app build for every pull request. After a successful merge or direct push to `main`, the workflow also publishes `MeetingAssistant-macOS-universal.zip` as an artifact on that workflow run. Successful `main` builds also update the rolling [development prerelease](https://github.com/mrworf/meeting-assistant/releases/tag/development), whose notes identify the source commit and CI run. Failed builds leave the previous download available. Pull request runs do not publish installable artifacts.
 
 ### Project structure
 
@@ -99,7 +106,9 @@ The GitHub Actions CI workflow runs the tests and verifies a universal, ad-hoc s
 
 Packaged builds are ad-hoc signed rather than Developer ID-signed and notarized. They are appropriate for local use and testing, but a Mac receiving the app from someone else may show a Gatekeeper warning.
 
-For a CI build, open the successful `main` workflow run in the repository's **Actions** tab, download `MeetingAssistant-macOS-universal.zip`, and unzip it before following these steps:
+Use **Latest build** at the top of this page for the latest successful `main` build, or **Latest official version** for the newest published version (including alpha releases). Both buttons download `MeetingAssistant-macOS-universal.zip` for Apple Silicon and Intel Macs. Unzip it before following these steps:
+
+The official-version link updates automatically when version releases change. Release assets must use the filename above; if an asset is uploaded after publication, run the **Update official download link** workflow manually. Maintainer documentation updates do not trigger another app build.
 
 1. Quit any existing copy of Meeting Assistant.
 2. Move `MeetingAssistant.app` into `/Applications`.

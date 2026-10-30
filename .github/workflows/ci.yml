@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -11,7 +12,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test-and-package:
@@ -29,6 +30,9 @@ jobs:
 
       - name: Prepare Swift caches
         run: mkdir -p "$CLANG_MODULE_CACHE_PATH" "$SWIFTPM_MODULECACHE_OVERRIDE"
+
+      - name: Test release automation
+        run: python3 -m unittest discover -s scripts/tests -v
 
       - name: Run tests
         run: swift test --disable-sandbox
@@ -59,3 +63,25 @@ jobs:
           path: MeetingAssistant-macOS-universal.zip
           archive: false
           if-no-files-found: error
+
+  publish-development:
+    name: Publish latest build
+    needs: test-and-package
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: publish-development
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: MeetingAssistant-macOS-universal.zip
+          skip-decompress: true
+      - name: Publish tested app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_downloads.py publish

@@ -1,0 +1,40 @@
+name: Update official download link
+
+on:
+  release:
+    types: [published, edited, deleted, released, prereleased, unpublished]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: official-download-link
+  cancel-in-progress: false
+
+jobs:
+  update-readme:
+    if: github.event_name == 'workflow_dispatch' || github.event.release.tag_name != 'development'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Test release selection
+        run: python3 -m unittest discover -s scripts/tests -v
+      - name: Update README download link
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release_downloads.py readme
+      - name: Commit changed link
+        run: |
+          if git diff --quiet -- README.md; then
+            echo "Official download link is already current."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md
+          git commit -m 'Update official version download link'
+          git pull --rebase origin main
+          git push origin HEAD:main
